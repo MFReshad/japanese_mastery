@@ -1,0 +1,15 @@
+.env
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Node / Next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# OS/editor
+.DS_Store
