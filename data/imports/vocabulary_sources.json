@@ -1,0 +1,11 @@
+[
+  {
+    "book_id": 100,
+    "chapter_id": 1001,
+    "item_order": 1,
+    "expression": "朝",
+    "reading": "あさ",
+    "meaning": "morning",
+    "source_section": "sample"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "book_id": 100,
+    "chapter_id": 1001,
+    "item_order": 1,
+    "character": "朝",
+    "meaning": "morning",
+    "onyomi": ["チョウ"],
+    "kunyomi": ["あさ"],
+    "examples": [{"word": "朝", "reading": "あさ", "meaning": "morning", "sort_order": 1}],
+    "source_section": "sample"
+  }
+]
