@@ -112,6 +112,28 @@ def _target_reading(character: str, word: str, word_reading: str,
     return matching[0] if len(matching) == 1 else None
 
 
+def _clear_standalone_meaning(meanings: list[str]) -> bool:
+    if not meanings:
+        return False
+    for value in meanings:
+        for part in value.split("/"):
+            part = part.strip()
+            if not part or not any(char.isalnum() for char in part):
+                return False
+            if part.casefold() in {"?", "unknown", "n/a", "na", "none", "tbd", "todo", "placeholder"}:
+                return False
+            if (part[0], part[-1]) in {("(", ")"), ("[", "]"), ("{", "}"),
+                                       ("（", "）"), ("［", "］"), ("【", "】")}:
+                return False
+            if part.endswith(("...", "…", "-", ":", ",", ";")):
+                return False
+            if re.search(r"\b(?:a|an|the|of|for|to|and|or|with)\s*$", part, re.IGNORECASE):
+                return False
+            if part.count("(") != part.count(")") or part.count("[") != part.count("]"):
+                return False
+    return True
+
+
 def questions_from_kanji(source: KanjiSource) -> list[QuestionDraft]:
     character = source.kanji.character
     meanings = [value for value in (source.meanings_as_printed or [source.meaning_as_printed]) if value]
@@ -131,7 +153,8 @@ def questions_from_kanji(source: KanjiSource) -> list[QuestionDraft]:
     reading = " / ".join(readings)
     add("kanji_to_meaning", character, meaning, reading or None, context)
     add("kanji_to_reading", character, reading, meaning or None, context)
-    add("meaning_to_kanji", meaning, character, reading or None, context)
+    if _clear_standalone_meaning(meanings):
+        add("meaning_to_kanji", meaning, character, reading or None, context)
     for example in examples:
         word = (example["word"] or "").strip()
         if not word or word == character or word.count(character) != 1:
