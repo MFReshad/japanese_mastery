@@ -1,7 +1,29 @@
 from app.models.item import Vocabulary, VocabularySource
 from app.models.item import KanjiExample, KanjiSource
 from app.models.practice import PracticeAnswer, PracticeQuestion
-from app.services.practice import questions_from_kanji
+from app.services.practice import _clear_standalone_meaning, questions_from_kanji
+
+
+def test_standalone_meaning_rejects_ambiguous_source_glosses():
+    for meaning in ("(body)", "[body]", "", "...", "?", "N/A", "part of", "body / (person)"):
+        assert not _clear_standalone_meaning([meaning])
+    for meanings in (["same"], ["port"], ["noon / daytime"], ["life", "birth"]):
+        assert _clear_standalone_meaning(meanings)
+
+
+def test_bad_standalone_meaning_keeps_other_kanji_questions(client, db_session):
+    book, chapter = setup_book(client)
+    source = client.post("/kanji-sources", json={"book_id": book["id"], "chapter_id": chapter["id"],
+        "item_order": 1, "character": "体", "meaning": "(body)", "onyomi": ["タイ"], "kunyomi": [],
+        "examples": [{"word": "体力", "reading": "たいりょく", "meaning": "stamina"}]}).json()
+    drafts = questions_from_kanji(db_session.get(KanjiSource, source["id"]))
+    assert "meaning_to_kanji" not in {draft.question_type for draft in drafts}
+    assert {draft.question_type for draft in drafts} == {
+        "kanji_to_meaning", "kanji_to_reading", "example_kanji_to_meaning", "example_kanji_to_reading"}
+    started = client.post("/practice/start", json={"practice_type": "kanji", "book_ids": [book["id"]],
+                                                  "question_count": None}).json()
+    assert len(started["questions"]) == len(drafts)
+    assert all(q["question_type"] != "meaning_to_kanji" for q in started["questions"])
 
 
 def setup_book(client):
