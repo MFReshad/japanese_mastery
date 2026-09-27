@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { api, Book, Chapter, getBooks, getChapters, Question, RevealedAnswer } from "@/lib/api";
+import { api, Book, Chapter, getBooks, getCachedBooks, getCachedChapters, getCachedChaptersByBook, getChapters, getChaptersByBook, Question, RevealedAnswer } from "@/lib/api";
 
 type PendingAnswer = { session_id: number; question_id: number; result: "correct" | "wrong"; note?: string };
 const pendingKey = "practice-pending-answers";
@@ -17,8 +17,12 @@ export default function PracticePage() {
 
 function PracticeContent() {
   const params = useSearchParams();
-  const [books, setBooks] = useState<Book[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [books, setBooks] = useState<Book[]>(() => getCachedBooks());
+  const [chapters, setChapters] = useState<Chapter[]>(() => {
+    const cached = getCachedChapters();
+    const initialBookId = params.get("book_id");
+    return cached.length || !initialBookId ? cached : getCachedChaptersByBook(Number(initialBookId));
+  });
   const [practiceType, setPracticeType] = useState(params.get("practice_type") ?? "mixed");
   const [mode, setMode] = useState(params.get("mode") ?? "random");
   const [bookId, setBookId] = useState(params.get("book_id") ?? "");
@@ -40,7 +44,14 @@ function PracticeContent() {
   const submitted = useRef(new Set<number>());
   const [pendingCount, setPendingCount] = useState(0);
   const [saveWarning, setSaveWarning] = useState("");
-  useEffect(() => { getBooks().then(setBooks); getChapters().then(setChapters); }, []);
+  useEffect(() => {
+    getBooks().then(setBooks);
+    if (bookId) {
+      getChaptersByBook(Number(bookId)).then(setChapters);
+    } else {
+      getChapters().then(setChapters);
+    }
+  }, []);
   useEffect(() => {
     try { pending.current = JSON.parse(sessionStorage.getItem(pendingKey) || "[]") as PendingAnswer[]; } catch { pending.current = []; }
     setPendingCount(pending.current.length);
@@ -119,7 +130,17 @@ function PracticeContent() {
       <section className="grid gap-2 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed"]} disabled={sessionActive || busy} />
         <Select value={mode} onChange={setMode} options={["random", "wrong", "weak", "never_practiced", "mastery_review"]} disabled={sessionActive || busy} />
-        <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={bookId} onChange={(e) => { setBookId(e.target.value); setChapterId(""); }}><option value="">All books</option>{books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}</select>
+        <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={bookId} onChange={(e) => {
+          const nextBookId = e.target.value;
+          setBookId(nextBookId); setChapterId("");
+          if (nextBookId) {
+            const cached = getCachedChaptersByBook(Number(nextBookId));
+            if (cached.length) setChapters((current) => mergeChapters(current, cached));
+            getChaptersByBook(Number(nextBookId)).then((loaded) => setChapters((current) => mergeChapters(current, loaded)));
+          } else {
+            getChapters().then(setChapters);
+          }
+        }}><option value="">All books</option>{books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}</select>
         <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={chapterId} onChange={(e) => setChapterId(e.target.value)}><option value="">All chapters</option>{chapters.filter((c) => !bookId || c.book_id === Number(bookId)).map((c) => <option key={c.id} value={c.id}>Lesson {c.chapter_number}</option>)}</select>
         <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={count} onChange={(e) => setCount(e.target.value)}>{["1", "10", "20", "30", "50", "All"].map((v) => <option key={v}>{v}</option>)}</select>
         <button disabled={sessionActive || busy} className="min-h-12 rounded bg-ink px-4 font-semibold text-white disabled:opacity-50 sm:col-span-2 lg:col-span-5" onClick={start}>{sessionActive ? "Session in progress" : busy ? "Please wait..." : sessionId ? "New session" : "Start"}</button>
@@ -163,4 +184,10 @@ function RevealDetails({ answer }: { answer: RevealedAnswer }) {
 
 function Select({ value, onChange, options, disabled }: { value: string; onChange: (value: string) => void; options: string[]; disabled?: boolean }) {
   return <select disabled={disabled} className="min-h-11 rounded border border-stone-300 px-3" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o.replaceAll("_", " ")}</option>)}</select>;
+}
+
+function mergeChapters(current: Chapter[], loaded: Chapter[]) {
+  const byId = new Map(current.map((chapter) => [chapter.id, chapter]));
+  for (const chapter of loaded) byId.set(chapter.id, chapter);
+  return Array.from(byId.values()).sort((a, b) => a.book_id - b.book_id || a.sort_order - b.sort_order || a.chapter_number - b.chapter_number);
 }

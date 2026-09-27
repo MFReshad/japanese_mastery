@@ -1,5 +1,5 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-const lookups = new Map<string, { expires: number; promise: Promise<unknown> }>();
+const lookups = new Map<string, { promise: Promise<unknown>; value?: unknown }>();
 const inFlightGets = new Map<string, Promise<unknown>>();
 
 export type Book = { id: number; title: string; short_name: string | null; vocabulary_count: number; kanji_count: number; is_demo: boolean };
@@ -57,12 +57,46 @@ export function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 function cachedLookup<T>(path: string): Promise<T> {
   const cached = lookups.get(path);
-  if (cached && cached.expires > Date.now()) return cached.promise as Promise<T>;
-  const promise = api<T>(path).catch((error) => { lookups.delete(path); throw error; });
-  lookups.set(path, { expires: Date.now() + 60_000, promise });
-  return promise;
+  if (cached) return cached.promise as Promise<T>;
+  const entry: { promise: Promise<unknown>; value?: unknown } = {
+    promise: api<T>(path)
+      .then((value) => {
+        entry.value = value;
+        return value;
+      })
+      .catch((error) => {
+        lookups.delete(path);
+        throw error;
+      }),
+  };
+  lookups.set(path, entry);
+  return entry.promise as Promise<T>;
+}
+
+function cachedLookupValue<T>(path: string): T | undefined {
+  return lookups.get(path)?.value as T | undefined;
+}
+
+function rememberLookup<T>(path: string, value: T): T {
+  lookups.set(path, { value, promise: Promise.resolve(value) });
+  return value;
 }
 
 export const getBooks = () => cachedLookup<Book[]>("/books");
 export const getChapters = () => cachedLookup<Chapter[]>("/chapters");
+export const getCachedBooks = () => cachedLookupValue<Book[]>("/books") ?? [];
+export const getCachedChapters = () => cachedLookupValue<Chapter[]>("/chapters") ?? [];
+export function getCachedChaptersByBook(bookId: number) {
+  return cachedLookupValue<Chapter[]>(`/chapters?book_id=${bookId}`)
+    ?? cachedLookupValue<Chapter[]>("/chapters")?.filter((chapter) => chapter.book_id === bookId)
+    ?? [];
+}
+export function getChaptersByBook(bookId: number) {
+  const path = `/chapters?book_id=${bookId}`;
+  const cached = cachedLookupValue<Chapter[]>(path);
+  if (cached) return Promise.resolve(cached);
+  const allChapters = cachedLookupValue<Chapter[]>("/chapters");
+  if (allChapters) return Promise.resolve(rememberLookup(path, allChapters.filter((chapter) => chapter.book_id === bookId)));
+  return cachedLookup<Chapter[]>(path);
+}
 export function invalidateLookups() { lookups.clear(); }

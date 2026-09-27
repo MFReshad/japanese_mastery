@@ -15,12 +15,14 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import *  # noqa: F401,F403
 from app.db.session import Base, get_db
 from app.main import app
+from app.services.lookup_cache import lookup_cache
 from app.services.practice_cache import practice_session_cache
 
 
 @pytest.fixture()
 def db_session():
     practice_session_cache.clear()
+    lookup_cache.clear()
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -31,6 +33,7 @@ def db_session():
     with TestingSessionLocal() as session:
         yield session
     practice_session_cache.clear()
+    lookup_cache.clear()
 
 
 @pytest.fixture()
