@@ -8,7 +8,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = ""
     allow_sqlite_for_tests: bool = False
-    personal_access_token: str = ""
     cors_origins: list[str] = [
         "http://localhost:3000",
         "https://japanesemastery.vercel.app",

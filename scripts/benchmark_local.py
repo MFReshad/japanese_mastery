@@ -12,7 +12,6 @@ if not url:
         "Set TEST_POSTGRES_URL to a disposable migrated PostgreSQL database"
     )
 os.environ["DATABASE_URL"] = url
-os.environ["PERSONAL_ACCESS_TOKEN"] = "local-benchmark-only"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from sqlalchemy import text, event
 from fastapi.testclient import TestClient
@@ -67,7 +66,7 @@ print(
 print("| Operation | Median ms | First/warm SQL statements |")
 print("|---|---:|---:|")
 with TestClient(app) as client:
-    headers = {"Authorization": "Bearer local-benchmark-only"}
+    headers = {}
 
     def measure(label, callback):
         durations, counts = [], []

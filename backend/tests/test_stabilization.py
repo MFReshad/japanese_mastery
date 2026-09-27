@@ -150,22 +150,6 @@ def test_duplicate_import_ids_rejected(tmp_path, db_session):
     assert import_directory(db_session, tmp_path)["summary"]["fatal_error"]
 
 
-def test_access_gate(client, monkeypatch):
-    from app.core import get_settings
-
-    monkeypatch.setattr(get_settings(), "personal_access_token", "test-personal-secret")
-    assert client.post("/books", json={"title": "Denied"}).status_code == 401
-    assert (
-        client.post(
-            "/books",
-            json={"title": "Allowed"},
-            headers={"Authorization": "Bearer test-personal-secret"},
-        ).status_code
-        == 200
-    )
-    assert client.get("/books").status_code == 200
-
-
 def test_import_path_restriction(client):
     assert (
         client.post("/import", json={"directory": "/tmp/unapproved"}).status_code == 400
@@ -324,17 +308,6 @@ def test_kanji_suppression(tmp_path, client, db_session):
     result = import_directory(db_session, tmp_path, False)
     assert result["kanji_sources"]["suppressed_records"] == 1
     assert db_session.scalar(select(KanjiSource)) is None
-
-
-def test_auth_rejection_has_cors_for_error_classification(client, monkeypatch):
-    from app.core import get_settings
-
-    monkeypatch.setattr(get_settings(), "personal_access_token", "test-secret")
-    response = client.post(
-        "/practice/start", headers={"Origin": "http://localhost:3000"}, json={}
-    )
-    assert response.status_code == 401
-    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
 def test_original_order_changes_are_reported(tmp_path, db_session):

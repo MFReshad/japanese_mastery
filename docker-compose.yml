@@ -5,7 +5,6 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      PERSONAL_ACCESS_TOKEN: ${PERSONAL_ACCESS_TOKEN}
       IMPORT_DIRECTORY: /app/data/imports
     volumes:
       - ./data:/app/data

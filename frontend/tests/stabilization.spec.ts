@@ -1,7 +1,7 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 
 const backend = "http://127.0.0.1:8100";
-const headers = { Authorization: "Bearer browser-test-token" };
+const headers = {};
 async function seed(request: APIRequestContext) {
   const book = await (await request.post(`${backend}/books`, { headers, data: { title: `Browser ${Date.now()}` } })).json();
   const chapters = [];
@@ -17,10 +17,6 @@ async function seed(request: APIRequestContext) {
   }
   return { book, chapters, sources };
 }
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem("personal-access-token", "browser-test-token"));
-});
-
 test("practice reveal survives page reload and saves exactly once", async ({ page, request }) => {
   const { book, chapters } = await seed(request);
   await page.goto(`/practice?practice_type=vocabulary&book_id=${book.id}&chapter_id=${chapters[1].id}`);
@@ -107,7 +103,7 @@ test("reveal remains saveable after backend process restart", async ({ page, req
   const { book, chapters } = await seed(request);
   const startWorker = () => spawn(process.env.E2E_PYTHON || "python3", ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8102"], {
     cwd: path.resolve("../backend"), stdio: "ignore",
-    env: {...process.env, DATABASE_URL: process.env.TEST_POSTGRES_URL, PERSONAL_ACCESS_TOKEN: "browser-test-token", CORS_ORIGINS: '["http://localhost:3100"]'},
+    env: {...process.env, DATABASE_URL: process.env.TEST_POSTGRES_URL, CORS_ORIGINS: '["http://localhost:3100"]'},
   });
   let worker = startWorker();
   async function ready() {

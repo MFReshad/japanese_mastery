@@ -4,7 +4,6 @@ from pathlib import Path
 
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["ALLOW_SQLITE_FOR_TESTS"] = "true"
-os.environ["PERSONAL_ACCESS_TOKEN"] = ""
 os.environ["CORS_ORIGINS"] = '["http://localhost:3000", "https://japanesemastery.vercel.app"]'
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 

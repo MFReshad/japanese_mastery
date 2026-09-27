@@ -24,7 +24,7 @@ docker compose up --build
 
 Run migrations explicitly before starting the backend (`cd backend && alembic upgrade head`). Container startup only starts the API. Demo seeding is opt-in: `python -m app.cli --seed-demo`.
 
-Set `PERSONAL_ACCESS_TOKEN` on the backend and enter it using **Unlock personal access** in the app. Mutations fail closed when it is missing. Never put this token in a `NEXT_PUBLIC_*` variable. Set `NEXT_PUBLIC_API_BASE` at frontend build time; production builds fail if it is missing.
+Set `NEXT_PUBLIC_API_BASE` at frontend build time; production builds fail if it is missing.
 
 See [stabilization and deployment notes](docs/STABILIZATION.md) for the pre-migration audit, reconciliation policy, and test commands.
 

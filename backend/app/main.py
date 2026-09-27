@@ -16,7 +16,6 @@ from app.errors import NotFound, Conflict, InvalidOperation
 from sqlalchemy.exc import IntegrityError
 import logging
 import traceback
-import secrets
 import time
 from uuid import uuid4
 
@@ -63,27 +62,9 @@ async def integrity_error(request: Request, exc: IntegrityError):
 
 
 @app.middleware("http")
-async def access_and_observability(request: Request, call_next):
+async def request_observability(request: Request, call_next):
     started = time.monotonic()
     request_id = uuid4().hex
-    settings = get_settings()
-    if request.method not in {"GET", "HEAD", "OPTIONS"}:
-        expected = settings.personal_access_token
-        test_only = (
-            settings.allow_sqlite_for_tests
-            and settings.sqlalchemy_database_url.startswith("sqlite")
-        )
-        if not expected and not test_only:
-            return JSONResponse(
-                status_code=503, content={"detail": "Personal access is not configured"}
-            )
-        if expected and not secrets.compare_digest(
-            request.headers.get("authorization", ""), "Bearer " + expected
-        ):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Unlock personal access to make changes"},
-            )
     try:
         response = await call_next(request)
     except Exception as exc:

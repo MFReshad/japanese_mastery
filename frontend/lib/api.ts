@@ -49,12 +49,11 @@ export function api<T>(path: string, init?: RequestInit): Promise<T> {
   const request = (async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
-    const token = typeof window === "undefined" ? null : sessionStorage.getItem("personal-access-token");
     try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
       signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) },
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
       cache: "no-store",
     });
     if (!res.ok) throw new ApiError(res.status, await res.text());
