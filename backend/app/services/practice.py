@@ -67,10 +67,37 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
             stmt = stmt.where(or_(ItemProgress.status == "weak", ItemProgress.last_result == "wrong"))
         elif payload.mode == "mastery_review":
             stmt = stmt.where(or_(ItemProgress.id.is_(None), ItemProgress.status != "mastered"))
+        elif payload.mode in ("starred", "starred_priority"):
+            stmt = stmt.where(ItemProgress.is_starred.is_(True))
     if payload.question_count is not None:
-        stmt = stmt.order_by(func.random()).limit(payload.question_count)
+        if payload.mode == "starred_priority":
+            stmt = stmt.order_by(
+                case(
+                    (ItemProgress.status == "weak", 0),
+                    (ItemProgress.status == "learning", 1),
+                    (ItemProgress.status == "new", 2),
+                    (ItemProgress.status == "mastered", 3),
+                    else_=4,
+                ),
+                model.book_id, model.chapter_id, model.item_order, model.id,
+            )
+        else:
+            stmt = stmt.order_by(func.random())
+        stmt = stmt.limit(payload.question_count)
     else:
-        stmt = stmt.order_by(model.book_id, model.chapter_id, model.item_order, model.id)
+        if payload.mode == "starred_priority":
+            stmt = stmt.order_by(
+                case(
+                    (ItemProgress.status == "weak", 0),
+                    (ItemProgress.status == "learning", 1),
+                    (ItemProgress.status == "new", 2),
+                    (ItemProgress.status == "mastered", 3),
+                    else_=4,
+                ),
+                model.book_id, model.chapter_id, model.item_order, model.id,
+            )
+        else:
+            stmt = stmt.order_by(model.book_id, model.chapter_id, model.item_order, model.id)
     return db.execute(stmt).unique().scalars().all()
 
 
@@ -186,7 +213,8 @@ def start_practice(db: Session, payload: PracticeStartRequest) -> tuple[Practice
     if payload.practice_type in ("kanji", "mixed"):
         kanji = _eligible_sources(db, payload, "kanji")
         drafts.extend(draft for source in kanji for draft in questions_from_kanji(source))
-    random.shuffle(drafts)
+    if payload.mode != "starred_priority":
+        random.shuffle(drafts)
     if payload.question_count is not None:
         drafts = drafts[:payload.question_count]
     session = PracticeSession(practice_type=payload.practice_type, mode=payload.mode, total_questions=len(drafts))

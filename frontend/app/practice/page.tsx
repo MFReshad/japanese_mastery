@@ -129,7 +129,7 @@ function PracticeContent() {
     <div className="space-y-4">
       <section className="grid gap-2 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed"]} disabled={sessionActive || busy} />
-        <Select value={mode} onChange={setMode} options={["random", "wrong", "weak", "never_practiced", "mastery_review"]} disabled={sessionActive || busy} />
+        <Select value={mode} onChange={setMode} options={["random", "wrong", "weak", "never_practiced", "mastery_review", "starred", "starred_priority"]} disabled={sessionActive || busy} />
         <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={bookId} onChange={(e) => {
           const nextBookId = e.target.value;
           setBookId(nextBookId); setChapterId("");

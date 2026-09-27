@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -26,6 +26,7 @@ class ItemProgress(TimestampMixin, Base):
     current_correct_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     mastery_score: Mapped[float] = mapped_column(Float, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="new", nullable=False)
+    is_starred: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_result: Mapped[Optional[str]] = mapped_column(String(20))
     last_practiced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
@@ -34,7 +35,7 @@ class PracticeSession(Base):
     __tablename__ = "practice_sessions"
     __table_args__ = (
         CheckConstraint("practice_type in ('vocabulary', 'kanji', 'mixed')", name="ck_session_practice_type"),
-        CheckConstraint("mode in ('random', 'weak', 'wrong', 'never_practiced', 'mastery_review')", name="ck_session_mode"),
+        CheckConstraint("mode in ('random', 'weak', 'wrong', 'never_practiced', 'mastery_review', 'starred', 'starred_priority')", name="ck_session_mode"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
