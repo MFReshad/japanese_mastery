@@ -6,15 +6,16 @@ import { api, Progress } from "@/lib/api";
 
 export default function HomePage() {
   const [progress, setProgress] = useState<Progress[]>([]);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  useEffect(() => { api<Progress[]>("/progress").then(setProgress).catch(() => setProgress([])).finally(() => setLoading(false)); }, []);
+  useEffect(() => { api<Progress[]>("/progress").then(setProgress).catch(reason => setError(`Could not load statistics: ${String(reason)}`)).finally(() => setLoading(false)); }, []);
   const vocab = progress.find((p) => p.item_type === "vocabulary");
   const kanji = progress.find((p) => p.item_type === "kanji");
   const weak = progress.reduce((sum, p) => sum + p.weak, 0);
   const never = progress.reduce((sum, p) => sum + p.new, 0);
   return (
     <div className="space-y-6">
-      {loading ? <section aria-label="Loading overview" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded border border-stone-200 bg-stone-100" />)}</section> : <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {error ? <p role="alert" className="text-persimmon">{error}</p> : loading ? <section aria-label="Loading overview" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded border border-stone-200 bg-stone-100" />)}</section> : <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Total Vocabulary" value={vocab?.total ?? 0} />
         <Stat label="Total Kanji" value={kanji?.total ?? 0} />
         <Stat label="Weak Items" value={weak} accent />

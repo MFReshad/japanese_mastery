@@ -80,7 +80,7 @@ def test_starred_practice_modes_use_starred_items(client, db_session):
     items = client.get(f"/library/items?kind=vocabulary&book_id={book.id}&chapter_id={chapter.id}").json()["items"]
     sources = [db_session.get(VocabularySource, item["id"]) for item in items]
     db_session.add_all([
-        ItemProgress(item_type="vocabulary", item_id=sources[0].vocabulary_id, status="mastered", is_starred=True),
+        ItemProgress(item_type="vocabulary", item_id=sources[0].vocabulary_id, status="mastered", attempts=5, correct_count=5, current_correct_streak=5, is_starred=True),
         ItemProgress(item_type="vocabulary", item_id=sources[1].vocabulary_id, status="weak", attempts=1, wrong_count=1,
                      last_result="wrong", is_starred=True),
         ItemProgress(item_type="vocabulary", item_id=sources[2].vocabulary_id, status="weak", attempts=1, wrong_count=1,
@@ -90,11 +90,11 @@ def test_starred_practice_modes_use_starred_items(client, db_session):
 
     starred = client.post("/practice/start", json={"practice_type": "vocabulary", "mode": "starred",
                                                    "book_ids": [book.id], "question_count": None}).json()
-    assert {question["prompt"] for question in starred["questions"]} <= {
+    assert {question["prompt"].split("\n")[0] for question in starred["questions"]} <= {
         items[0]["expression_as_printed"], items[0]["meaning_as_printed"],
         items[1]["expression_as_printed"], items[1]["meaning_as_printed"],
     }
 
     priority = client.post("/practice/start", json={"practice_type": "vocabulary", "mode": "starred_priority",
                                                     "book_ids": [book.id], "question_count": 1}).json()
-    assert priority["questions"][0]["prompt"] in {items[1]["expression_as_printed"], items[1]["meaning_as_printed"]}
+    assert priority["questions"][0]["prompt"].split("\n")[0] in {items[1]["expression_as_printed"], items[1]["meaning_as_printed"]}

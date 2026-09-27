@@ -1,5 +1,12 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-const lookups = new Map<string, { promise: Promise<unknown>; value?: unknown }>();
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+  get retryable() { return this.status === 408 || this.status === 429 || this.status >= 500; }
+}
+export function retryable(error: unknown) { return !(error instanceof ApiError) || error.retryable; }
+const TTL = 30_000;
+const lookups = new Map<string, { promise: Promise<unknown>; value?: unknown; expires: number }>();
+let readGeneration = 0;
 const inFlightGets = new Map<string, Promise<unknown>>();
 
 export type Book = { id: number; title: string; short_name: string | null; vocabulary_count: number; kanji_count: number; is_demo: boolean };
@@ -38,34 +45,46 @@ export function api<T>(path: string, init?: RequestInit): Promise<T> {
   const isGet = !init?.method || init.method.toUpperCase() === "GET";
   const pending = isGet ? inFlightGets.get(path) : undefined;
   if (pending) return pending as Promise<T>;
+  const generation = readGeneration;
   const request = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const token = typeof window === "undefined" ? null : sessionStorage.getItem("personal-access-token");
+    try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new ApiError(res.status, await res.text());
+    if (!isGet && /^\/(books|chapters|vocabulary-sources|kanji-sources|import)(\/|$)/.test(path)) invalidateLookups();
     if (res.status === 204) return undefined as T;
-    return res.json() as Promise<T>;
+    const result = await res.json() as T;
+    if (isGet && generation !== readGeneration) return api<T>(path, init);
+    return result;
+    } finally { clearTimeout(timeout); }
   })();
   if (isGet) {
     inFlightGets.set(path, request);
-    request.then(() => inFlightGets.delete(path), () => inFlightGets.delete(path));
+    const release = () => { if (inFlightGets.get(path) === request) inFlightGets.delete(path); };
+    request.then(release, release);
   }
   return request;
 }
 
 function cachedLookup<T>(path: string): Promise<T> {
   const cached = lookups.get(path);
-  if (cached) return cached.promise as Promise<T>;
-  const entry: { promise: Promise<unknown>; value?: unknown } = {
+  if (cached && cached.expires > Date.now()) return cached.promise as Promise<T>;
+  const entry: { promise: Promise<unknown>; value?: unknown; expires: number } = {
+    expires: Date.now() + TTL,
     promise: api<T>(path)
       .then((value) => {
         entry.value = value;
         return value;
       })
       .catch((error) => {
-        lookups.delete(path);
+        if (lookups.get(path) === entry) lookups.delete(path);
         throw error;
       }),
   };
@@ -74,11 +93,12 @@ function cachedLookup<T>(path: string): Promise<T> {
 }
 
 function cachedLookupValue<T>(path: string): T | undefined {
-  return lookups.get(path)?.value as T | undefined;
+  const entry = lookups.get(path);
+  return entry && entry.expires > Date.now() ? entry.value as T : undefined;
 }
 
 function rememberLookup<T>(path: string, value: T): T {
-  lookups.set(path, { value, promise: Promise.resolve(value) });
+  lookups.set(path, { value, expires: Date.now() + TTL, promise: Promise.resolve(value) });
   return value;
 }
 
@@ -99,4 +119,12 @@ export function getChaptersByBook(bookId: number) {
   if (allChapters) return Promise.resolve(rememberLookup(path, allChapters.filter((chapter) => chapter.book_id === bookId)));
   return cachedLookup<Chapter[]>(path);
 }
-export function invalidateLookups() { lookups.clear(); }
+export function invalidateLookups() {
+  readGeneration++; lookups.clear(); inFlightGets.clear();
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("lookups-invalidated"));
+}
+export function subscribeLookups(refresh: () => void) {
+  window.addEventListener("lookups-invalidated", refresh);
+  const timer = window.setInterval(refresh, TTL);
+  return () => { window.removeEventListener("lookups-invalidated", refresh); clearInterval(timer); };
+}

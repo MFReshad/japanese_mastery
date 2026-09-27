@@ -26,7 +26,7 @@ def test_cached_reveal_and_idempotent_answer(client, db_session):
     finally:
         event.remove(db_session.bind, "before_cursor_execute", count_sql)
     assert revealed.status_code == 200
-    assert statements == []
+    assert any("UPDATE practice_questions" in statement for statement in statements)
 
     payload = {"session_id": started["session_id"], "question_id": question_id, "result": "wrong",
                "note": "Forgot this"}

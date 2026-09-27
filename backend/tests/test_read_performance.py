@@ -77,7 +77,7 @@ def test_practice_start_limits_materialized_sources(client, db_session):
 def test_progress_coverage_uses_bounded_queries(client, db_session):
     book, chapter = seed_chapter(db_session, 3)
     first = db_session.scalar(select(Vocabulary).where(Vocabulary.expression == "語001"))
-    db_session.add(ItemProgress(item_type="vocabulary", item_id=first.id, status="mastered"))
+    db_session.add(ItemProgress(item_type="vocabulary", item_id=first.id, status="mastered", attempts=5, correct_count=5, current_correct_streak=5))
     db_session.commit()
     statements = []
     def count(conn, cursor, statement, parameters, context, executemany):

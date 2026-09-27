@@ -1,20 +1,50 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
+from pydantic import Field, model_validator
 
 from app.schemas.common import OrmModel
 
 
 class PracticeStartRequest(OrmModel):
-    practice_type: str = "mixed"
-    mode: str = "random"
+    practice_type: Literal["vocabulary", "kanji", "mixed"] = "mixed"
+    mode: Literal[
+        "random",
+        "weak",
+        "wrong",
+        "never_practiced",
+        "mastery_review",
+        "starred",
+        "starred_priority",
+    ] = "random"
     book_ids: list[int] = []
     chapter_ids: list[int] = []
     source_entry_ids: list[int] = []
     parts: list[int | str] = []
     order_start: int | None = None
     order_end: int | None = None
-    question_count: int | None = 10
+    question_count: int | None = Field(default=10, ge=1, le=2000)
+
+    @model_validator(mode="after")
+    def validate_ranges(self):
+        if any(
+            value <= 0
+            for value in self.book_ids + self.chapter_ids + self.source_entry_ids
+        ):
+            raise ValueError("IDs must be positive")
+        if any(
+            value is not None and value < 0
+            for value in (self.order_start, self.order_end)
+        ):
+            raise ValueError("Order must be nonnegative")
+        if (
+            self.order_start is not None
+            and self.order_end is not None
+            and self.order_start > self.order_end
+        ):
+            raise ValueError("Order start must not exceed order end")
+        return self
 
 
 class PracticeQuestion(OrmModel):
@@ -32,8 +62,8 @@ class PracticeStartResponse(OrmModel):
 class PracticeAnswerRequest(OrmModel):
     session_id: int
     question_id: int
-    result: str
-    note: str | None = None
+    result: Literal["correct", "wrong"]
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class PracticeRevealRequest(OrmModel):

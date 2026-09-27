@@ -1,9 +1,9 @@
 [
   {
-    "id": 1001,
-    "book_id": 100,
+    "id": "sample_chapter_v1",
+    "book_id": "sample_book_v1",
     "chapter_number": 1,
-    "title": "Imported Lesson 1",
+    "title": "Morning",
     "sort_order": 1
   }
 ]

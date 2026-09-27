@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Literal
 from app.schemas.common import OrmModel, Timestamped
 
 
@@ -17,6 +18,7 @@ class VocabularySourceCreate(OrmModel):
 
 
 class VocabularySourceUpdate(OrmModel):
+    identity_action: Literal["correction", "relink"] | None = None
     chapter_id: int | None = None
     item_order: int | None = None
     expression_as_printed: str | None = None
@@ -72,6 +74,7 @@ class KanjiSourceCreate(OrmModel):
 
 
 class KanjiSourceUpdate(OrmModel):
+    meanings_as_printed: list[str] | None = None
     chapter_id: int | None = None
     item_order: int | None = None
     meaning_as_printed: str | None = None

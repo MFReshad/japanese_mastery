@@ -23,13 +23,21 @@ def _engine_options(url: str) -> dict:
     }
 
 
-engine = create_engine(get_settings().sqlalchemy_database_url, **_engine_options(get_settings().sqlalchemy_database_url))
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+engine = create_engine(
+    get_settings().sqlalchemy_database_url,
+    **_engine_options(get_settings().sqlalchemy_database_url),
+)
+SessionLocal = sessionmaker(
+    bind=engine, autoflush=False, autocommit=False, expire_on_commit=False
+)
 
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

@@ -4,6 +4,8 @@ import { BarChart3, BookOpen, Database, Home, Library, Play, BookText } from "lu
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { PersonalAccess } from "./PersonalAccess";
+
 const links = [
   { href: "/", label: "Home", icon: Home },
   { href: "/practice", label: "Practice", icon: Play },
@@ -31,6 +33,7 @@ export function Nav() {
           ))}
         </div>
       </div>
+      <PersonalAccess />
     </nav>
   );
 }

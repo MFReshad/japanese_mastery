@@ -136,7 +136,7 @@ def test_vocabulary_order_insert_reuse_remove_and_reset(client, db_session):
         source.original_item_order = source.item_order
         source.manually_added = False
     db_session.commit()
-    reordered = client.put(base, json={"source_ids": [initial[0]["id"], initial[2]["id"], initial[1]["id"]]}).json()
+    reordered = client.put(base, json={"expected_source_ids": [row["id"] for row in initial], "source_ids": [initial[0]["id"], initial[2]["id"], initial[1]["id"]]}).json()
     assert [row["item_order"] for row in reordered] == [1, 2, 3]
     assert reordered[1]["original_item_order"] == 3 and reordered[1]["manually_reordered"]
     assert [row["source_entry_id"] for row in client.get(f"/study/items?book_id={book['id']}&chapter_id={chapter['id']}&kind=vocabulary").json()] == [initial[0]["id"], initial[2]["id"], initial[1]["id"]]

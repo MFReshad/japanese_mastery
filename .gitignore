@@ -13,3 +13,6 @@ out/
 
 # OS/editor
 .DS_Store
+
+frontend/test-results/
+frontend/playwright-report/

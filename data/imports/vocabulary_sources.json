@@ -1,11 +1,15 @@
 [
   {
-    "book_id": 100,
-    "chapter_id": 1001,
+    "id": "sample_vocab_source_v1",
+    "vocabulary_id": "sample_vocab_v1",
+    "book_id": "sample_book_v1",
+    "chapter_id": "sample_chapter_v1",
     "item_order": 1,
-    "expression": "朝",
-    "reading": "あさ",
-    "meaning": "morning",
-    "source_section": "sample"
+    "expression_as_printed": "朝",
+    "reading_as_printed": "あさ",
+    "meaning_as_printed": "morning",
+    "meanings_as_printed": [
+      "morning"
+    ]
   }
 ]

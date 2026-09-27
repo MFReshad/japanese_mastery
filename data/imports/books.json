@@ -1,11 +1,10 @@
 [
   {
-    "id": 100,
+    "id": "sample_book_v1",
     "title": "Demo Import Book",
     "short_name": "DEMO-IMPORT",
-    "edition": "Sample",
-    "jlpt_level": "N5",
-    "description": "Sample import data only.",
+    "edition": "Sample v1",
+    "note": "Sample import data only.",
     "is_demo": true
   }
 ]

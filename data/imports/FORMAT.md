@@ -1,0 +1,1 @@
+Sample import format version 1. Six JSON arrays with stable string IDs and explicit canonical/source references. This directory contains demo data only. Real source datasets must not be edited by application operations.

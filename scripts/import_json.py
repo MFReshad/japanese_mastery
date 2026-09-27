@@ -28,6 +28,9 @@ def main() -> None:
     summary = result["summary"]
     print(f"summary: dry_run={summary['dry_run']} rolled_back={summary['rolled_back']} fatal_error={summary['fatal_error']}")
 
+    if summary["fatal_error"]:
+        raise SystemExit(1)
+
 
 if __name__ == "__main__":
     main()

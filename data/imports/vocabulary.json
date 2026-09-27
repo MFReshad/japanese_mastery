@@ -1,3 +1,7 @@
 [
-  {"expression": "朝", "reading": "あさ"}
+  {
+    "id": "sample_vocab_v1",
+    "expression": "朝",
+    "reading": "あさ"
+  }
 ]
