@@ -9,6 +9,7 @@ from app.models.item import Kanji, KanjiExample, KanjiSource, Vocabulary, Vocabu
 from app.models.practice import ItemProgress
 from app.repositories.items import create_kanji_source, create_vocabulary_source, filter_kanji_sources, filter_vocabulary_sources
 from app.schemas.items import KanjiExampleIn, KanjiSourceCreate, KanjiSourceRead, KanjiSourceUpdate, VocabularySourceCreate, VocabularySourceRead, VocabularySourceUpdate
+from app.services.lookup_cache import lookup_cache
 
 router = APIRouter()
 
@@ -102,6 +103,7 @@ def add_vocabulary_source(payload: VocabularySourceCreate, db: Session = Depends
     source = create_vocabulary_source(db, payload)
     db.commit()
     db.refresh(source)
+    lookup_cache.invalidate_books()
     source = db.scalar(select(VocabularySource).options(selectinload(VocabularySource.vocabulary)).where(VocabularySource.id == source.id))
     return vocab_out(db, source)
 
@@ -141,6 +143,7 @@ def list_kanji_sources(book_id: int | None = None, chapter_id: int | None = None
 def add_kanji_source(payload: KanjiSourceCreate, db: Session = Depends(get_db)):
     source = create_kanji_source(db, payload)
     db.commit()
+    lookup_cache.invalidate_books()
     source = db.scalar(select(KanjiSource).options(selectinload(KanjiSource.kanji), selectinload(KanjiSource.examples)).where(KanjiSource.id == source.id))
     return kanji_out(db, source)
 
