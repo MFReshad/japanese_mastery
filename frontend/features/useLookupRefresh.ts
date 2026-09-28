@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { Book, Chapter, getBooks, getChapters, subscribeLookups } from "@/lib/api";
+import { Book, Chapter, getActiveBooks, getChapters, subscribeLookups } from "@/lib/api";
 
 export function useLookupRefresh(setBooks: (books: Book[]) => void, setChapters: (chapters: Chapter[]) => void) {
   useEffect(() => {
@@ -8,7 +8,7 @@ export function useLookupRefresh(setBooks: (books: Book[]) => void, setChapters:
     let generation = 0;
     const refresh = () => {
       const request = ++generation;
-      Promise.all([getBooks(), getChapters()]).then(([books, chapters]) => {
+      Promise.all([getActiveBooks(), getChapters()]).then(([books, chapters]) => {
         if (active && request === generation) { setBooks(books); setChapters(chapters); }
       }).catch(() => { /* Initial loads own their visible error state; keep last good lookup on refresh. */ });
     };

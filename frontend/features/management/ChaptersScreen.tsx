@@ -3,12 +3,12 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
-import { api, Book, Chapter, getBooks, getChaptersByBook, invalidateLookups } from "@/lib/api";
+import { api, Book, Chapter, getActiveBooks, getChaptersByBook, invalidateLookups } from "@/lib/api";
 import { inputClass, ManageHeader, Modal, primaryButton, secondaryButton } from "./shared";
 type Draft = { chapter_number: number; title: string; part: string; sort_order: number };
 export default function ChaptersScreen() {
   const params = useSearchParams(); const [books, setBooks] = useState<Book[]>([]); const [bookId, setBookId] = useState(""); const [chapters, setChapters] = useState<Chapter[]>([]); const [editing, setEditing] = useState<Chapter | "new" | null>(null); const [draft, setDraft] = useState<Draft>({ chapter_number: 1, title: "", part: "", sort_order: 1 }); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false);
-  useEffect(() => { getBooks().then(rows => { setBooks(rows); const requested = params.get("book") || localStorage.getItem("manage-book") || ""; if (rows.some(row => String(row.id) === requested)) setBookId(requested); }); }, [params]);
+  useEffect(() => { getActiveBooks().then(rows => { setBooks(rows); const requested = params.get("book") || localStorage.getItem("manage-book") || ""; if (rows.some(row => String(row.id) === requested)) setBookId(requested); }); }, [params]);
   useEffect(() => { if (!bookId) { setChapters([]); return; } localStorage.setItem("manage-book", bookId); getChaptersByBook(Number(bookId)).then(rows => setChapters([...rows].sort((a,b) => a.sort_order-b.sort_order))).catch(error => setMessage(String(error))); }, [bookId]);
   function open(chapter?: Chapter) { setEditing(chapter ?? "new"); const next = chapters.length + 1; setDraft(chapter ? { chapter_number: chapter.chapter_number, title: chapter.title, part: chapter.part == null ? "" : String(chapter.part), sort_order: chapter.sort_order } : { chapter_number: next, title: "", part: "", sort_order: next }); }
   async function save(event: FormEvent) { event.preventDefault(); setBusy(true); try { const payload = { ...draft, part: draft.part || null, book_id: Number(bookId) }; await api(editing === "new" ? "/chapters" : `/chapters/${(editing as Chapter).id}`, { method: editing === "new" ? "POST" : "PATCH", body: JSON.stringify(payload) }); invalidateLookups(); setChapters(await getChaptersByBook(Number(bookId))); setEditing(null); setMessage("Chapter saved."); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } }

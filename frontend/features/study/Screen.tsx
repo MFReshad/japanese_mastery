@@ -5,7 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, BookOpen, ChevronRight, Play } from "lucide-react";
-import { api, Book, Chapter, getBooks, getChapters, StudyKind, StudyListItem, StudyNextChapter } from "@/lib/api";
+import { api, Book, Chapter, getActiveBooks, getChapters, StudyKind, StudyListItem, StudyNextChapter } from "@/lib/api";
 
 export default function StudyPage() {
   return <Suspense fallback={<main className="py-12">Loading...</main>}><StudyHome /></Suspense>;
@@ -27,11 +27,11 @@ function StudyHome() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([getBooks(), getChapters()]).then(([loadedBooks, loadedChapters]) => {
+    Promise.all([getActiveBooks(), getChapters()]).then(([loadedBooks, loadedChapters]) => {
       setLookupsReady(true);
       setBooks(loadedBooks);
       setChapters(loadedChapters);
-      if (!bookId && loadedBooks.length) {
+      if (!loadedBooks.some((book) => String(book.id) === bookId) && loadedBooks.length) {
         const first = loadedBooks.find((book) => !book.is_demo) ?? loadedBooks[0];
         setBookId(String(first.id));
         if (first.vocabulary_count === 0 && first.kanji_count > 0) setKind("kanji");

@@ -94,7 +94,14 @@ test("management dashboard opens books and creates a book", async ({ page }) => 
   await page.getByLabel("Title", {exact: true}).fill(title);
   await page.getByLabel("Short name").fill(`B${Date.now()}`);
   await page.getByRole("button", {name: "Save book"}).click();
-  await expect(page.getByRole("heading", {name: title})).toBeVisible();
+  const row = page.getByRole("article").filter({has: page.getByRole("heading", {name: title})});
+  await expect(row).toBeVisible();
+  await row.getByRole("button", {name: "Mark inactive"}).click();
+  await expect(row.getByText("Inactive", {exact: true})).toBeVisible();
+  await page.goto("/study");
+  await expect(page.getByRole("combobox", {name: "Book"}).locator("option", {hasText: title})).toHaveCount(0);
+  await page.goto("/manage/books");
+  await page.getByRole("article").filter({has: page.getByRole("heading", {name: title})}).getByRole("button", {name: "Mark active"}).click();
 });
 
 test("reveal remains saveable after backend process restart", async ({ page, request }) => {

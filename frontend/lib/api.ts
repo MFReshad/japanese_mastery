@@ -102,8 +102,10 @@ function rememberLookup<T>(path: string, value: T): T {
 }
 
 export const getBooks = () => cachedLookup<Book[]>("/books");
+export const getActiveBooks = () => getBooks().then((books) => books.filter((book) => book.is_active));
 export const getChapters = () => cachedLookup<Chapter[]>("/chapters");
 export const getCachedBooks = () => cachedLookupValue<Book[]>("/books") ?? [];
+export const getCachedActiveBooks = () => getCachedBooks().filter((book) => book.is_active);
 export const getCachedChapters = () => cachedLookupValue<Chapter[]>("/chapters") ?? [];
 export function getCachedChaptersByBook(bookId: number) {
   return cachedLookupValue<Chapter[]>(`/chapters?book_id=${bookId}`)

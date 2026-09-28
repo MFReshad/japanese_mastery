@@ -4,7 +4,7 @@ import { useLookupRefresh } from "@/features/useLookupRefresh";
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Book, Chapter, getBooks, getCachedBooks, getCachedChapters, getCachedChaptersByBook, getChapters, getChaptersByBook, Question, RevealedAnswer } from "@/lib/api";
+import { Book, Chapter, getActiveBooks, getCachedActiveBooks, getCachedChapters, getCachedChaptersByBook, getChapters, getChaptersByBook, Question, RevealedAnswer } from "@/lib/api";
 
 import { drainQueue, enqueue, queuedIds, queueState, subscribeQueue } from "@/features/practice/answerQueue";
 import { startPractice, resumePractice, revealQuestion } from "./api";
@@ -20,7 +20,7 @@ export default function PracticePage() {
 
 function PracticeContent() {
   const params = useSearchParams();
-  const [books, setBooks] = useState<Book[]>(() => getCachedBooks());
+  const [books, setBooks] = useState<Book[]>(() => getCachedActiveBooks());
   const [chapters, setChapters] = useState<Chapter[]>(() => {
     const cached = getCachedChapters();
     const initialBookId = params.get("book_id");
@@ -48,7 +48,7 @@ function PracticeContent() {
   const [pendingCount, setPendingCount] = useState(0);
   const [saveWarning, setSaveWarning] = useState("");
   useEffect(() => {
-    getBooks().then(setBooks).catch(reason => setError(String(reason)));
+    getActiveBooks().then(loaded => { setBooks(loaded); if (bookId && !loaded.some(book => String(book.id) === bookId)) { setBookId(""); setChapterId(""); } }).catch(reason => setError(String(reason)));
     if (bookId) {
       getChaptersByBook(Number(bookId)).then(setChapters).catch(reason => setError(String(reason)));
     } else {

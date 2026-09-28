@@ -4,7 +4,7 @@ import { useLookupRefresh } from "@/features/useLookupRefresh";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight, Star } from "lucide-react";
-import { api, Book, Chapter, getBooks, getChapters } from "@/lib/api";
+import { api, Book, Chapter, getActiveBooks, getChapters } from "@/lib/api";
 
 import { BookChapterFilters } from "@/components/BookChapterFilters";
 
@@ -33,7 +33,7 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => { Promise.all([getBooks(), getChapters()]).then(([loadedBooks, loadedChapters]) => {
+  useEffect(() => { Promise.all([getActiveBooks(), getChapters()]).then(([loadedBooks, loadedChapters]) => {
     setBooks(loadedBooks); setChapters(loadedChapters);
   }).catch((reason) => setError(String(reason))); }, []);
   useEffect(() => { const timer = setTimeout(() => setDebouncedSearch(search), 250); return () => clearTimeout(timer); }, [search]);
