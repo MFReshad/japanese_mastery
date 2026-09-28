@@ -24,7 +24,7 @@ export function Nav() {
         </Link>
         <div className="flex gap-1 overflow-x-auto">
           {links.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={`flex min-h-10 items-center gap-2 rounded px-3 text-sm ${pathname === href || (href === "/study" && pathname.startsWith("/study/")) ? "bg-ink text-white" : "hover:bg-stone-100"}`}>
+            <Link key={href} href={href} className={`flex min-h-10 items-center gap-2 rounded px-3 text-sm ${pathname === href || (["/study", "/manage"].includes(href) && pathname.startsWith(`${href}/`)) ? "bg-ink text-white" : "hover:bg-stone-100"}`}>
               <Icon size={17} />
               <span className="hidden sm:inline">{label}</span>
             </Link>

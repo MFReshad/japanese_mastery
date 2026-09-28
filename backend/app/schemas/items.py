@@ -101,5 +101,6 @@ class KanjiSourceRead(Timestamped):
     source_file: str | None
     source_page: str | None
     source_section: str | None
+    extraction_batch: str | None = None
     examples: list[KanjiExampleIn] = []
     status: str = "new"

@@ -23,6 +23,9 @@ class Book(TimestampMixin, Base):
     is_demo: Mapped[bool] = mapped_column(
         default=False, server_default="false", nullable=False
     )
+    is_active: Mapped[bool] = mapped_column(
+        default=True, server_default="true", nullable=False
+    )
 
     chapters: Mapped[list["Chapter"]] = relationship(
         back_populates="book", cascade="all, delete-orphan"

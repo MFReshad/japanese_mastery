@@ -85,7 +85,7 @@ def add_vocabulary_source(payload: VocabularySourceCreate, db: Session = None):
     db.commit()
     lookup_cache.invalidate_progress()
     db.refresh(source)
-    lookup_cache.invalidate_books()
+    lookup_cache.clear()
     source = db.scalar(
         select(VocabularySource)
         .options(selectinload(VocabularySource.vocabulary))
@@ -186,7 +186,7 @@ def add_kanji_source(payload: KanjiSourceCreate, db: Session = None):
     source = create_kanji_source(db, payload)
     db.commit()
     lookup_cache.invalidate_progress()
-    lookup_cache.invalidate_books()
+    lookup_cache.clear()
     source = db.scalar(
         select(KanjiSource)
         .options(selectinload(KanjiSource.kanji), selectinload(KanjiSource.examples))

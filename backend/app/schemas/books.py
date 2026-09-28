@@ -10,6 +10,7 @@ class BookBase(OrmModel):
     jlpt_level: str | None = None
     description: str | None = None
     is_demo: bool = False
+    is_active: bool = True
 
 
 class BookCreate(BookBase):
@@ -22,6 +23,7 @@ class BookUpdate(OrmModel):
     edition: str | None = None
     jlpt_level: str | None = None
     description: str | None = None
+    is_active: bool | None = None
 
 
 class BookRead(BookBase, Timestamped):
@@ -29,12 +31,14 @@ class BookRead(BookBase, Timestamped):
     source_id: str | None = None
     vocabulary_count: int = 0
     kanji_count: int = 0
+    chapter_count: int = 0
 
 
 class ChapterBase(OrmModel):
     book_id: int
     chapter_number: int
     title: str
+    part: int | str | None = None
     sort_order: int = 0
 
 
@@ -46,10 +50,12 @@ class ChapterUpdate(OrmModel):
     book_id: int | None = None
     chapter_number: int | None = None
     title: str | None = None
+    part: int | str | None = None
     sort_order: int | None = None
 
 
 class ChapterRead(ChapterBase, Timestamped):
     id: int
     source_id: str | None = None
-    part: int | str | None = None
+    vocabulary_count: int = 0
+    kanji_count: int = 0

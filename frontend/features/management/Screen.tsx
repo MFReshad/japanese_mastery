@@ -1,132 +1,15 @@
 "use client";
-
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, Book, Chapter, getBooks, getChapters, invalidateLookups, subscribeLookups, KanjiSource, VocabSource } from "@/lib/api";
-import ChapterVocabularyManager from "@/components/ChapterVocabularyManager";
-
-export default function ManagePage() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [importResult, setImportResult] = useState("");
-  const lookupGeneration = useRef(0);
-  const reload = () => {
-    const generation = ++lookupGeneration.current;
-    Promise.all([getBooks(), getChapters()]).then(([books, chapters]) => {
-      if (generation === lookupGeneration.current) { setBooks(books); setChapters(chapters); }
-    }).catch(error => { if (generation === lookupGeneration.current) setImportResult(String(error)); });
-  };
-  useEffect(() => { reload(); return subscribeLookups(reload); }, []);
-  async function addBook(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); const element = e.currentTarget; if (element.dataset.pending) return; element.dataset.pending = "true";
-    const button = element.querySelector("button"); if (button) button.disabled = true;
-    const form = new FormData(element);
-    try {
-    await api("/books", { method: "POST", body: JSON.stringify(Object.fromEntries(form)) }); element.reset(); invalidateLookups(); reload();
-    } catch (error) { setImportResult(String(error)); } finally { delete element.dataset.pending; if (button) button.disabled = false; }
-  }
-  async function addChapter(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); const element = e.currentTarget; if (element.dataset.pending) return; element.dataset.pending = "true";
-    const button = element.querySelector("button"); if (button) button.disabled = true;
-    const form = new FormData(element);
-    try {
-    await api("/chapters", { method: "POST", body: JSON.stringify({ book_id: Number(form.get("book_id")), chapter_number: Number(form.get("chapter_number")), title: form.get("title"), sort_order: Number(form.get("sort_order") || form.get("chapter_number")) }) }); element.reset(); invalidateLookups(); reload();
-    } catch (error) { setImportResult(String(error)); } finally { delete element.dataset.pending; if (button) button.disabled = false; }
-  }
-  const importPending = useRef(false);
-  const [importBusy, setImportBusy] = useState(false);
-  async function runImport(dryRun: boolean) {
-    if (importPending.current) return;
-    importPending.current = true; setImportBusy(true);
-    try {
-    const res = await api<Record<string, unknown>>("/import", { method: "POST", body: JSON.stringify({ directory: "data/imports", dry_run: dryRun }) });
-    setImportResult(JSON.stringify(res, null, 2)); invalidateLookups(); reload();
-    } catch (error) { setImportResult(String(error)); } finally { importPending.current = false; setImportBusy(false); }
-  }
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded border border-stone-200 bg-white p-4"><h1 className="mb-3 text-xl font-semibold">Books</h1><form className="grid gap-2" onSubmit={addBook}><input name="title" required className="rounded border p-3" placeholder="Title" /><input name="short_name" required className="rounded border p-3" placeholder="Short name" /><input name="edition" className="rounded border p-3" placeholder="Edition" /><input name="jlpt_level" className="rounded border p-3" placeholder="JLPT level" /><button className="rounded bg-ink p-3 font-semibold text-white">Create book</button></form><List items={books.map((b) => `${b.title} · vocab ${b.vocabulary_count} · kanji ${b.kanji_count}`)} /></section>
-      <section className="rounded border border-stone-200 bg-white p-4"><h1 className="mb-3 text-xl font-semibold">Chapters</h1><form className="grid gap-2" onSubmit={addChapter}><select name="book_id" required className="rounded border p-3">{books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}</select><input name="chapter_number" required type="number" className="rounded border p-3" placeholder="Chapter number" /><input name="sort_order" type="number" className="rounded border p-3" placeholder="Sort order" /><input name="title" required className="rounded border p-3" placeholder="Title" /><button className="rounded bg-ink p-3 font-semibold text-white">Create chapter</button></form><List items={chapters.map((c) => `Lesson ${c.chapter_number}: ${c.title}`)} /></section>
-      <EntryForms books={books} chapters={chapters} />
-      <SourceEditor books={books} chapters={chapters} />
-      <ChapterVocabularyManager books={books} chapters={chapters} />
-      <section className="rounded border border-stone-200 bg-white p-4 lg:col-span-2"><h1 className="mb-3 text-xl font-semibold">Import JSON</h1><div className="flex gap-2"><button className="rounded border border-moss px-4 py-3 font-semibold text-moss" disabled={importBusy} onClick={() => runImport(true)}>Preview</button><button className="rounded bg-moss px-4 py-3 font-semibold text-white" disabled={importBusy} onClick={() => runImport(false)}>Import</button></div>{importResult && <pre className="mt-3 overflow-auto rounded bg-stone-900 p-3 text-xs text-white">{importResult}</pre>}</section>
-    </div>
-  );
-}
-
-function SourceEditor({ books, chapters }: { books: Book[]; chapters: Chapter[] }) {
-  const [bookId, setBookId] = useState("");
-  const [chapterId, setChapterId] = useState("");
-  const [kind, setKind] = useState<"vocabulary" | "kanji">("kanji");
-  const [items, setItems] = useState<(VocabSource | KanjiSource)[]>([]);
-  const [selected, setSelected] = useState("");
-  const [draft, setDraft] = useState({ meaning: "", onyomi: "", kunyomi: "", examples: "[]", uncertain: false, notes: "" });
-  const [saving, setSaving] = useState(false);
-  const saveInFlight = useRef(false);
-  const [message, setMessage] = useState("");
-  useEffect(() => {
-    setSelected("");
-    if (!bookId || !chapterId) { setItems([]); return; }
-    let active = true;
-    setItems([]);
-    api<(VocabSource | KanjiSource)[]>(`/${kind}-sources?book_id=${bookId}&${chapterId === "unassigned" ? "unassigned=true" : `chapter_id=${chapterId}`}`).then((rows) => { if (active) setItems(rows); }).catch((err) => { if (active) setMessage(String(err)); });
-    setSelected("");
-    return () => { active = false; };
-  }, [bookId, chapterId, kind]);
-  function choose(id: string) {
-    setSelected(id);
-    const item = items.find((entry) => entry.id === Number(id));
-    if (!item) return;
-    const kanji = kind === "kanji" ? item as KanjiSource : null;
-    setDraft({ meaning: item.meaning_as_printed, onyomi: kanji?.onyomi.join(", ") || "", kunyomi: kanji?.kunyomi.join(", ") || "",
-      examples: JSON.stringify(kanji?.examples || [], null, 2), uncertain: kanji?.uncertain || false, notes: item.notes || "" });
-    setMessage("");
-  }
-  async function save(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (saveInFlight.current) return;
-    saveInFlight.current = true; setSaving(true);
-    try {
-      const payload: Record<string, unknown> = { meaning_as_printed: draft.meaning, notes: draft.notes };
-      if (kind === "kanji") {
-        const examples = JSON.parse(draft.examples);
-        if (!Array.isArray(examples) || examples.some((entry) => !entry.word || !entry.reading || !entry.meaning)) throw new Error("Examples must be an array of word, reading, and meaning objects.");
-        Object.assign(payload, { onyomi: draft.onyomi.split(",").map((v) => v.trim()).filter(Boolean), kunyomi: draft.kunyomi.split(",").map((v) => v.trim()).filter(Boolean), examples, uncertain: draft.uncertain });
-      }
-      const updated = await api<VocabSource | KanjiSource>(`/${kind}-sources/${selected}`, { method: "PATCH", body: JSON.stringify(payload) });
-      setItems(current => current.map(item => item.id === updated.id ? updated : item));
-      setMessage("Saved. Source ID and provenance remain unchanged.");
-    } catch (err) { setMessage(String(err)); } finally { saveInFlight.current = false; setSaving(false); }
-  }
-  return <section className="border-t border-stone-200 pt-4 lg:col-span-2">
-    <h2 className="mb-3 text-lg font-semibold">Edit source entry</h2>
-    <div className="grid gap-2 sm:grid-cols-4">
-      <select disabled={saving} aria-label="Entry type" className="border p-2" value={kind} onChange={(e) => setKind(e.target.value as "vocabulary" | "kanji")}><option value="kanji">Kanji</option><option value="vocabulary">Vocabulary</option></select>
-      <select disabled={saving} aria-label="Book" className="border p-2" value={bookId} onChange={(e) => { setBookId(e.target.value); setChapterId(""); }}><option value="">Select book</option>{books.map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select>
-      <select disabled={saving} aria-label="Chapter" className="border p-2" value={chapterId} onChange={(e) => setChapterId(e.target.value)}><option value="">Select chapter</option><option value="unassigned">Unassigned</option>{chapters.filter((chapter) => chapter.book_id === Number(bookId)).map((chapter) => <option key={chapter.id} value={chapter.id}>Lesson {chapter.chapter_number}: {chapter.title}</option>)}</select>
-      <select disabled={saving} aria-label="Source entry" className="border p-2" value={selected} onChange={(e) => choose(e.target.value)}><option value="">Select entry</option>{items.map((item) => <option key={item.id} value={item.id}>{kind === "kanji" ? (item as KanjiSource).character : (item as VocabSource).expression} · {item.source_id || item.id}</option>)}</select>
-    </div>
-    {selected && <form className="mt-3 grid gap-2" onSubmit={save}>
-      <label>Meaning<textarea className="block w-full border p-2" value={draft.meaning} onChange={(e) => setDraft({ ...draft, meaning: e.target.value })} /></label>
-      {kind === "kanji" && <><label>Onyomi<input className="block w-full border p-2" value={draft.onyomi} onChange={(e) => setDraft({ ...draft, onyomi: e.target.value })} /></label><label>Kunyomi<input className="block w-full border p-2" value={draft.kunyomi} onChange={(e) => setDraft({ ...draft, kunyomi: e.target.value })} /></label><label>Examples (JSON)<textarea className="block w-full border p-2 font-mono text-sm" rows={7} value={draft.examples} onChange={(e) => setDraft({ ...draft, examples: e.target.value })} /></label><label className="flex items-center gap-2"><input type="checkbox" checked={draft.uncertain} onChange={(e) => setDraft({ ...draft, uncertain: e.target.checked })} />Uncertain</label></>}
-      <label>Notes<textarea className="block w-full border p-2" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label><button disabled={saving} className="w-fit bg-moss px-4 py-2 text-white">Save changes</button>
-    </form>}
-    {message && <p role="status" className="mt-2 text-sm">{message}</p>}
-  </section>;
-}
-
-function EntryForms({ books, chapters }: { books: Book[]; chapters: Chapter[] }) {
-  const [message, setMessage] = useState("");
-  async function addKanji(e: FormEvent<HTMLFormElement>) { e.preventDefault(); const element = e.currentTarget; if (element.dataset.pending) return; element.dataset.pending = "true"; const button = element.querySelector("button"); if (button) button.disabled = true; const f = new FormData(element); try { await api("/kanji-sources", { method: "POST", body: JSON.stringify({ book_id: Number(f.get("book_id")), chapter_id: Number(f.get("chapter_id")), item_order: Number(f.get("item_order")), character: f.get("character"), meaning: f.get("meaning"), onyomi: String(f.get("onyomi") || "").split(/[,\s]+/).filter(Boolean), kunyomi: String(f.get("kunyomi") || "").split(/[,\s]+/).filter(Boolean), examples: [] }) }); invalidateLookups(); element.reset(); } catch (error) { setMessage(String(error)); } finally { delete element.dataset.pending; if (button) button.disabled = false; } }
-  return <section className="rounded border border-stone-200 bg-white p-4 lg:col-span-2"><h1 className="mb-3 text-xl font-semibold">Kanji</h1>{message && <p role="alert">{message}</p>}<EntryForm books={books} chapters={chapters} onSubmit={addKanji} fields={["character", "meaning", "onyomi", "kunyomi"]} /></section>;
-}
-
-function EntryForm({ books, chapters, fields, onSubmit }: { books: Book[]; chapters: Chapter[]; fields: string[]; onSubmit: (e: FormEvent<HTMLFormElement>) => void }) {
-  const [bookId, setBookId] = useState("");
-  const selectedBook = bookId || String(books[0]?.id ?? "");
-  return <form className="grid gap-2" onSubmit={onSubmit}><select name="book_id" value={selectedBook} onChange={event => setBookId(event.target.value)} required className="rounded border p-3">{books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}</select><select name="chapter_id" required className="rounded border p-3">{chapters.filter(c => c.book_id === Number(selectedBook)).map((c) => <option key={c.id} value={c.id}>Lesson {c.chapter_number}: {c.title}</option>)}</select><input name="item_order" required type="number" className="rounded border p-3" placeholder="Order" />{fields.map((field) => <input key={field} name={field} required={!["notes", "onyomi", "kunyomi"].includes(field)} className="rounded border p-3" placeholder={field} />)}<button className="rounded bg-ink p-3 font-semibold text-white">Save</button></form>;
-}
-
-function List({ items }: { items: string[] }) {
-  return <div className="mt-3 space-y-1 text-sm text-stone-600">{items.map((item, index) => <div key={index} className="rounded bg-stone-50 p-2">{item}</div>)}</div>;
-}
+import Link from "next/link";
+import { BookOpen, BookMarked, Languages, Database, Upload, BarChart3, LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Book, Chapter, getBooks, getChapters } from "@/lib/api";
+type Card = { href: string; title: string; description: string; icon: LucideIcon; count: (books: Book[], chapters: Chapter[]) => string };
+const cards: Card[] = [
+  { href: "/manage/books", title: "Books", description: "Manage book metadata and availability.", icon: BookOpen, count: (books) => `${books.length} ${books.length === 1 ? "book" : "books"}` },
+  { href: "/manage/chapters", title: "Chapters", description: "Organize lessons within each book.", icon: BookMarked, count: (_, chapters) => `${chapters.length} ${chapters.length === 1 ? "chapter" : "chapters"}` },
+  { href: "/manage/vocabulary", title: "Vocabulary", description: "Edit chapter vocabulary, fill gaps, and control study order.", icon: Languages, count: (books) => `${books.reduce((sum, book) => sum + book.vocabulary_count, 0).toLocaleString()} entries` },
+  { href: "/manage/kanji", title: "Kanji", description: "Review readings, meanings, examples, and uncertain entries.", icon: Database, count: (books) => `${books.reduce((sum, book) => sum + book.kanji_count, 0).toLocaleString()} entries` },
+  { href: "/manage/imports", title: "Imports", description: "Preview source files, resolve conflicts, and commit imports.", icon: Upload, count: () => "Preview before committing" },
+  { href: "/progress", title: "Practice / Progress", description: "Review mastery and coverage across your study data.", icon: BarChart3, count: () => "View learning progress" },
+];
+export default function ManagePage() { const [data, setData] = useState<{ books: Book[]; chapters: Chapter[] }>({ books: [], chapters: [] }); useEffect(() => { Promise.all([getBooks(), getChapters()]).then(([books, chapters]) => setData({ books, chapters })); }, []); return <div><header className="mb-8"><h1 className="text-3xl font-semibold tracking-tight">Data Management</h1><p className="mt-2 max-w-2xl text-stone-600">Choose an area to manage. Everyday editing and import tools are kept in focused workspaces.</p></header><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{cards.map(({ href, title, description, icon: Icon, count }) => <Link key={href} href={href} className="group flex min-h-52 flex-col rounded-2xl border border-stone-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-moss hover:shadow-md"><div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-moss/10 text-moss"><Icon size={23} /></div><h2 className="text-xl font-semibold group-hover:text-moss">{title}</h2><p className="mt-2 flex-1 text-sm leading-6 text-stone-600">{description}</p><p className="mt-5 text-sm font-semibold text-ink">{count(data.books, data.chapters)}</p></Link>)}</div></div>; }

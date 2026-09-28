@@ -1,5 +1,5 @@
 from __future__ import annotations
-from app.repositories.books import books_with_counts
+from app.repositories.books import books_with_counts, chapters_with_counts
 from app.errors import NotFound, Conflict
 
 from sqlalchemy import select
@@ -25,9 +25,12 @@ def list_books(db: Session = None):
                 update={
                     "vocabulary_count": vocabulary_count,
                     "kanji_count": kanji_count,
+                    "chapter_count": chapter_count,
                 }
             )
-            for book, vocabulary_count, kanji_count in books_with_counts(db)
+            for book, vocabulary_count, kanji_count, chapter_count in books_with_counts(
+                db
+            )
         ]
 
     return lookup_cache.get_books(load)
@@ -70,13 +73,16 @@ def delete_book(book_id: int, db: Session = None):
 
 def list_chapters(book_id: int | None = None, db: Session = None):
     def load() -> list[ChapterRead]:
-        stmt = select(Chapter).order_by(
-            Chapter.book_id, Chapter.sort_order, Chapter.chapter_number
-        )
-        if book_id:
-            stmt = stmt.where(Chapter.book_id == book_id)
         return [
-            ChapterRead.model_validate(chapter) for chapter in db.scalars(stmt).all()
+            ChapterRead.model_validate(chapter).model_copy(
+                update={
+                    "vocabulary_count": vocabulary_count,
+                    "kanji_count": kanji_count,
+                }
+            )
+            for chapter, vocabulary_count, kanji_count in chapters_with_counts(
+                db, book_id
+            )
         ]
 
     if book_id:
@@ -91,6 +97,7 @@ def create_chapter(payload: ChapterCreate, db: Session = None):
     lookup_cache.invalidate_progress()
     db.refresh(chapter)
     lookup_cache.invalidate_chapters(chapter.book_id)
+    lookup_cache.invalidate_books()
     return chapter
 
 
@@ -118,4 +125,5 @@ def update_chapter(chapter_id: int, payload: ChapterUpdate, db: Session = None):
     lookup_cache.invalidate_chapters(old_book_id)
     if chapter.book_id != old_book_id:
         lookup_cache.invalidate_chapters(chapter.book_id)
+    lookup_cache.invalidate_books()
     return chapter

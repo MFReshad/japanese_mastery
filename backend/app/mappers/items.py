@@ -47,6 +47,7 @@ def kanji_out(source: KanjiSource, status: str = "new") -> KanjiSourceRead:
             "source_file": source.source_file,
             "source_page": source.source_page,
             "source_section": source.source_section,
+            "extraction_batch": source.extraction_batch,
             "created_at": source.created_at,
             "updated_at": source.updated_at,
             "character": source.kanji.character,

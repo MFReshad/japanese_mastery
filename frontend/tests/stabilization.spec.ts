@@ -86,14 +86,15 @@ test("canonical stars update every visible occurrence and book filter scopes cha
   await page.reload();
 });
 
-test("management create resets form after await and refreshes counts", async ({ page }) => {
+test("management dashboard opens books and creates a book", async ({ page }) => {
   await page.goto("/manage");
+  await page.getByRole("link", {name: /Books/}).click();
   const title = `Created in browser ${Date.now()}`;
-  await page.getByPlaceholder("Title", {exact: true}).first().fill(title);
-  await page.getByPlaceholder("Short name").fill(`B${Date.now()}`);
-  await page.getByRole("button", {name: "Create book", exact: true}).click();
-  await expect(page.getByPlaceholder("Title", {exact: true}).first()).toHaveValue("");
-  await expect(page.getByText(`${title} · vocab 0 · kanji 0`)).toBeVisible();
+  await page.getByRole("button", {name: "Add book"}).click();
+  await page.getByLabel("Title", {exact: true}).fill(title);
+  await page.getByLabel("Short name").fill(`B${Date.now()}`);
+  await page.getByRole("button", {name: "Save book"}).click();
+  await expect(page.getByRole("heading", {name: title})).toBeVisible();
 });
 
 test("reveal remains saveable after backend process restart", async ({ page, request }) => {
@@ -130,23 +131,41 @@ test("reveal remains saveable after backend process restart", async ({ page, req
 
 test("management creates kanji in the selected book and edits its source", async ({ page, request }) => {
   const {book, chapters} = await seed(request);
-  await page.goto("/manage");
-  const create = page.locator("form").filter({has: page.getByPlaceholder("character", {exact: true})});
-  await create.locator('select[name="book_id"]').selectOption(String(book.id));
-  await create.locator('select[name="chapter_id"]').selectOption(String(chapters[1].id));
-  await create.getByPlaceholder("Order").fill("3");
-  await create.getByPlaceholder("character", {exact: true}).fill("語");
-  await create.getByPlaceholder("meaning", {exact: true}).fill("language");
-  await create.getByRole("button", {name: "Save", exact: true}).click();
-  await expect(create.getByPlaceholder("character", {exact: true})).toHaveValue("");
-  const editor = page.locator("section").filter({has: page.getByRole("heading", {name: "Edit source entry"})});
-  await editor.getByLabel("Book", {exact: true}).selectOption(String(book.id));
-  await editor.getByLabel("Chapter", {exact: true}).selectOption(String(chapters[1].id));
-  await expect(editor.getByLabel("Source entry").locator("option")).toHaveCount(2);
-  await editor.getByLabel("Source entry").selectOption({index: 1});
-  await editor.locator("textarea").first().fill("speech / language");
-  await editor.getByRole("button", {name: "Save changes"}).click();
-  await expect(editor.getByRole("status")).toContainText("Saved.");
+  await page.goto(`/manage/kanji?book=${book.id}&chapter=${chapters[1].id}`);
+  await page.getByRole("button", {name: "Add kanji"}).click();
+  const addDialog = page.getByRole("dialog", {name: "Add kanji"});
+  await addDialog.getByRole("textbox", {name: "Kanji", exact: true}).fill("語");
+  await addDialog.getByRole("textbox", {name: "Meaning", exact: true}).fill("language");
+  await addDialog.getByRole("button", {name: "Save kanji"}).click();
+  await page.getByRole("button", {name: "Edit"}).click();
+  const editDialog = page.getByRole("dialog", {name: "Edit 語"});
+  await editDialog.getByRole("textbox", {name: "Meaning", exact: true}).fill("speech / language");
+  await editDialog.getByRole("button", {name: "Save kanji"}).click();
+  await expect(page.getByRole("status")).toContainText("saved");
   const sources = await (await request.get(`${backend}/kanji-sources?book_id=${book.id}&chapter_id=${chapters[1].id}`)).json();
   expect(sources[0].meaning_as_printed).toBe("speech / language");
+});
+
+test("vocabulary management preserves context through edit add and reorder", async ({ page, request }) => {
+  const {book, chapters} = await seed(request);
+  await page.goto("/manage");
+  await page.getByRole("link", {name: /Vocabulary/}).click();
+  await page.getByLabel("Book", {exact: true}).selectOption(String(book.id));
+  await page.getByLabel("Chapter", {exact: true}).selectOption(String(chapters[1].id));
+  await expect(page.getByText("2 entries in study order")).toBeVisible();
+  await page.getByRole("button", {name: "Edit", exact: true}).first().click();
+  await page.getByLabel("Meaning").fill("early morning");
+  await page.getByRole("button", {name: "Save entry"}).click();
+  await page.getByRole("button", {name: "Add vocabulary"}).click();
+  await page.getByLabel("Expression").fill("夜");
+  await page.getByLabel("Reading").fill("よる");
+  await page.getByLabel("Meaning").fill("night");
+  await page.getByRole("dialog", {name: "Add vocabulary"}).getByRole("button", {name: "Add vocabulary", exact: true}).click();
+  await page.getByRole("button", {name: /Move 夜 up/}).click();
+  await page.getByRole("button", {name: "Save order"}).click();
+  await page.goto("/manage");
+  await page.getByRole("link", {name: /Vocabulary/}).click();
+  await expect(page.getByLabel("Book", {exact: true})).toHaveValue(String(book.id));
+  await expect(page.getByLabel("Chapter", {exact: true})).toHaveValue(String(chapters[1].id));
+  await expect(page.getByText("3 entries in study order")).toBeVisible();
 });
