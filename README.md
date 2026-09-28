@@ -22,7 +22,7 @@ docker compose up --build
 - Backend: http://localhost:8000
 - API docs: http://localhost:8000/docs
 
-Run migrations explicitly before starting the backend (`cd backend && alembic upgrade head`). Container startup only starts the API. Demo seeding is opt-in: `python -m app.cli --seed-demo`.
+Run migrations explicitly before starting the backend locally (`cd backend && alembic upgrade head`). The backend container applies pending migrations before starting the API. Demo seeding is opt-in: `python -m app.cli --seed-demo`.
 
 Set `NEXT_PUBLIC_API_BASE` at frontend build time; production builds fail if it is missing.
 
