@@ -60,6 +60,8 @@ test("permanent rejection does not block a later answer", async ({ page, request
   }
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("practice-answer-queue-v1") || "{}").items?.length)).toBe(0);
   await expect(page.getByRole("alert").filter({hasText: "need review"})).toContainText("need review");
+  await page.getByRole("button", {name: "Retry"}).click();
+  await expect(page.getByRole("alert").filter({hasText: "need review"})).toHaveCount(0);
 });
 
 test("Study deep link survives delayed lookups", async ({ page, request }) => {

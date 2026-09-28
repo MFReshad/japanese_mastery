@@ -42,6 +42,14 @@ export function enqueue(item: PendingAnswer) {
   if (!items.some(value => value.question_id === item.question_id)) items.push(item);
   notify(); void drainQueue();
 }
+export function retryFailed(): Promise<void> {
+  load();
+  for (const item of failed) {
+    if (!items.some(value => value.question_id === item.question_id)) items.push(item);
+  }
+  failed = []; warning = ""; notify();
+  return drainQueue();
+}
 export function drainQueue(): Promise<void> {
   load();
   if (running) return running;

@@ -6,7 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Book, Chapter, getActiveBooks, getCachedActiveBooks, getCachedChapters, getCachedChaptersByBook, getChapters, getChaptersByBook, Question, RevealedAnswer } from "@/lib/api";
 
-import { drainQueue, enqueue, queuedIds, queueState, subscribeQueue } from "@/features/practice/answerQueue";
+import { drainQueue, enqueue, queuedIds, queueState, retryFailed, subscribeQueue } from "@/features/practice/answerQueue";
 import { startPractice, resumePractice, revealQuestion } from "./api";
 const activeKey = "practice-active-session-v1";
 
@@ -134,7 +134,7 @@ function PracticeContent() {
         <button disabled={sessionActive || busy} className="min-h-12 rounded bg-ink px-4 font-semibold text-white disabled:opacity-50 sm:col-span-2 lg:col-span-5" onClick={start}>{sessionActive ? "Session in progress" : busy ? "Please wait..." : sessionId ? "New session" : "Start"}</button>
       </section>
       {error && <p role="alert" className="text-persimmon">{error}</p>}
-      {saveWarning && <div role="alert" className="flex items-center gap-3 text-sm text-persimmon"><span>{saveWarning}</span><button className="underline" onClick={() => void drainQueue()}>Retry</button></div>}
+      {saveWarning && <div role="alert" className="flex items-center gap-3 text-sm text-persimmon"><span>{saveWarning}</span><button className="underline" onClick={() => void retryFailed()}>Retry</button></div>}
       {currentQuestion ? (
         <section className="flex min-h-[420px] flex-col items-center justify-center rounded border border-stone-200 bg-white p-6 text-center">
           <div className="mb-4 text-sm text-stone-500">{index + 1} / {questions.length} · {currentQuestion.question_type.replaceAll("_", " ")}</div>
