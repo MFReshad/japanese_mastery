@@ -138,8 +138,8 @@ function PracticeContent() {
       {currentQuestion ? (
         <section className="flex min-h-[420px] flex-col items-center justify-center rounded border border-stone-200 bg-white p-6 text-center">
           <div className="mb-4 text-sm text-stone-500">{index + 1} / {questions.length} · {currentQuestion.question_type.replaceAll("_", " ")}</div>
-          <QuestionPrompt question={currentQuestion} />
-          {shown ? <RevealDetails answer={reveal.answer} /> : <button disabled={busy} className="mb-8 min-h-14 rounded bg-moss px-8 font-semibold text-white disabled:opacity-50" onClick={showAnswer}>Show answer</button>}
+          <QuestionPrompt key={currentQuestion.question_id} question={currentQuestion} />
+          {shown ? <RevealDetails answer={reveal.answer} hideSecondary={isKanjiVocabularyMeaningQuestion(currentQuestion)} /> : <button disabled={busy} className="mb-8 min-h-14 rounded bg-moss px-8 font-semibold text-white disabled:opacity-50" onClick={showAnswer}>Show answer</button>}
           {shown && <div className="w-full max-w-md space-y-3">
             {noteOpen ? <label className="block text-left text-sm font-medium">Note (optional)<textarea autoFocus className="mt-1 w-full rounded border border-stone-300 p-3" rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} /></label> : <button type="button" className="min-h-11 text-sm font-medium text-ink underline underline-offset-4" onClick={() => setNoteOpen(true)}>Add note</button>}
             <div className="grid grid-cols-2 gap-3"><button className="min-h-14 rounded border border-persimmon font-semibold text-persimmon" onClick={() => answer("wrong")}>Wrong</button><button className="min-h-14 rounded bg-moss font-semibold text-white" onClick={() => answer("correct")}>Correct</button></div>
@@ -151,6 +151,9 @@ function PracticeContent() {
 }
 
 function QuestionPrompt({ question }: { question: Question }) {
+  if (isKanjiVocabularyMeaningQuestion(question)) {
+    return <KanjiVocabularyPrompt prompt={question.prompt} />;
+  }
   if (!question.question_type.startsWith("example_kanji_")) {
     return <div className="mb-8 break-words text-5xl font-semibold sm:text-7xl">{question.prompt}</div>;
   }
@@ -162,9 +165,24 @@ function QuestionPrompt({ question }: { question: Question }) {
   </div>;
 }
 
-function RevealDetails({ answer }: { answer: RevealedAnswer }) {
+function KanjiVocabularyPrompt({ prompt }: { prompt: string }) {
+  const [showReading, setShowReading] = useState(false);
+  const [expression, reading] = prompt.split("\n", 2);
+  return <div className="mb-8">
+    <div lang="ja" className="break-words text-5xl font-semibold sm:text-7xl">{expression}</div>
+    {showReading && <div lang="ja" className="mt-3 text-xl text-stone-600 sm:text-2xl">{reading}</div>}
+    <button type="button" className="mt-4 min-h-11 text-sm font-medium text-moss underline underline-offset-4" onClick={() => setShowReading(current => !current)}>{showReading ? "Hide reading" : "Show reading"}</button>
+  </div>;
+}
+
+function isKanjiVocabularyMeaningQuestion(question: Question) {
+  const [expression, reading] = question.prompt.split("\n", 2);
+  return question.item_type === "vocabulary" && question.question_type === "japanese_to_meaning" && /[\u3400-\u9fff]/.test(expression) && Boolean(reading);
+}
+
+function RevealDetails({ answer, hideSecondary = false }: { answer: RevealedAnswer; hideSecondary?: boolean }) {
   const context = answer.context;
-  if (!context) return <div className="mb-8 space-y-2"><div className="text-3xl font-semibold text-moss">{answer.answer_primary}</div>{answer.answer_secondary && <div className="text-xl text-stone-600">{answer.answer_secondary}</div>}</div>;
+  if (!context) return <div className="mb-8 space-y-2"><div className="text-3xl font-semibold text-moss">{answer.answer_primary}</div>{!hideSecondary && answer.answer_secondary && <div className="text-xl text-stone-600">{answer.answer_secondary}</div>}</div>;
   return <div className="mb-8 w-full max-w-xl space-y-4 text-left">
     {context.kind === "kanji" ? <><div className="text-center text-6xl font-semibold">{context.kanji}</div><p><strong>Meaning</strong> {context.meanings?.join(" / ") || "—"}</p><p><strong>Onyomi</strong> {context.onyomi?.join(" / ") || "—"}</p><p><strong>Kunyomi</strong> {context.kunyomi?.join(" / ") || "—"}</p>{Boolean(context.examples?.length) && <div><h3 className="mb-2 font-semibold">Examples</h3><div className="space-y-2">{context.examples?.map((example, i) => <div key={i} className="rounded border border-stone-200 p-3"><strong>{example.word}</strong> · {example.reading} · {example.meaning}</div>)}</div></div>}</> : <><div className="text-4xl font-semibold">{context.kanji}</div><p><strong>Target meaning</strong> {context.target_meaning}</p>{context.target_reading && <p><strong>Target reading</strong> {context.target_reading}</p>}<p><strong>Onyomi</strong> {context.onyomi?.join(" / ") || "—"}</p><p><strong>Kunyomi</strong> {context.kunyomi?.join(" / ") || "—"}</p><div className="border-t border-stone-200 pt-3"><p><strong>Word</strong> {context.word}</p><p><strong>Reading</strong> {context.reading}</p><p><strong>Meaning</strong> {context.meaning}</p></div></>}
   </div>;
