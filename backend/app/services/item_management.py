@@ -233,8 +233,22 @@ def update_kanji_source(source_id: int, payload: KanjiSourceUpdate, db: Session 
     for key, value in changes.items():
         setattr(source, key, value)
     if examples is not None:
+        important = {
+            (example.word, example.reading, example.meaning): example.is_important
+            for example in source.examples
+        }
         source.examples.clear()
-        source.examples.extend(KanjiExample(**example) for example in examples)
+        source.examples.extend(
+            KanjiExample(
+                word=example["word"],
+                reading=example["reading"],
+                meaning=example["meaning"],
+                sort_order=example.get("sort_order", 0),
+                is_important=example.get("is_important", False)
+                or important.get((example["word"], example["reading"], example["meaning"]), False),
+            )
+            for example in examples
+        )
     db.commit()
     lookup_cache.invalidate_progress()
     db.refresh(source)

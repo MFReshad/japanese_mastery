@@ -191,6 +191,9 @@ class KanjiExample(Base):
     word: Mapped[str] = mapped_column(String(255), nullable=False)
     reading: Mapped[str] = mapped_column(String(255), nullable=False)
     meaning: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_important: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     sort_order: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )

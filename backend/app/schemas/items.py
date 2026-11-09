@@ -52,10 +52,16 @@ class VocabularySourceRead(Timestamped):
 
 
 class KanjiExampleIn(OrmModel):
+    id: int | None = None
     word: str
     reading: str
     meaning: str
     sort_order: int = 0
+    is_important: bool = False
+
+
+class KanjiExampleImportanceUpdate(OrmModel):
+    is_important: bool
 
 
 class KanjiSourceCreate(OrmModel):

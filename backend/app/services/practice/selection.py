@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.repositories.parts import part_matches
 from app.models.book import Chapter
-from app.models.item import KanjiSource, VocabularySource
+from app.models.item import KanjiExample, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
 from app.schemas.practice import PracticeStartRequest
 
@@ -24,6 +24,8 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
             stmt = stmt.options(
                 joinedload(KanjiSource.kanji), joinedload(KanjiSource.examples)
             )
+        if payload.practice_type == "important_kanji_words":
+            stmt = stmt.where(KanjiSource.examples.any(KanjiExample.is_important.is_(True)))
     if payload.book_ids:
         stmt = stmt.where(model.book_id.in_(payload.book_ids))
     if payload.chapter_ids:

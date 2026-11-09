@@ -233,9 +233,11 @@ def study_detail(kind: str, source_id: str, db: Session = None):
         "stroke_count_as_printed": source.stroke_count_as_printed,
         "examples": [
             {
+                "id": example.id,
                 "word": example.word,
                 "reading": example.reading,
                 "meaning": example.meaning,
+                "is_important": example.is_important,
             }
             for example in sorted(source.examples, key=lambda e: (e.sort_order, e.id))
         ],

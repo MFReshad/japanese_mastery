@@ -152,3 +152,33 @@ def questions_from_kanji(source: KanjiSource) -> list[QuestionDraft]:
 
 def question_from_kanji(source: KanjiSource) -> QuestionDraft:
     return random.choice(questions_from_kanji(source))
+
+
+def important_word_questions(source: KanjiSource) -> list[QuestionDraft]:
+    """One simple word-only recall card for each marked example."""
+    result = []
+    for example in sorted(source.examples, key=lambda e: (e.sort_order, e.id)):
+        word = example.word.strip()
+        reading = example.reading.strip()
+        meaning = example.meaning.strip()
+        if not example.is_important or not word or not reading or not meaning:
+            continue
+        result.append(
+            QuestionDraft(
+                "kanji",
+                source.kanji_id,
+                source.id,
+                "important_kanji_word",
+                word,
+                reading,
+                meaning,
+                {
+                    "kind": "important_kanji_word",
+                    "kanji": source.kanji.character,
+                    "word": word,
+                    "reading": reading,
+                    "meaning": meaning,
+                },
+            )
+        )
+    return result

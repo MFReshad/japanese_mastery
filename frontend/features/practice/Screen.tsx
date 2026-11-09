@@ -122,7 +122,7 @@ function PracticeContent() {
   return (
     <div className="space-y-4">
       <section className="grid gap-2 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed"]} disabled={sessionActive || busy} />
+        <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed", "important_kanji_words"]} disabled={sessionActive || busy} />
         <Select value={mode} onChange={setMode} options={["random", "wrong", "weak", "never_practiced", "mastery_review", "starred", "starred_priority"]} disabled={sessionActive || busy} />
         <BookChapterFilters books={books} chapters={chapters} bookId={bookId} chapterId={chapterId} disabled={sessionActive || busy}
           onBookChange={nextBookId => {
@@ -137,7 +137,7 @@ function PracticeContent() {
       {saveWarning && <div role="alert" className="flex items-center gap-3 text-sm text-persimmon"><span>{saveWarning}</span><button className="underline" onClick={() => void retryFailed()}>Retry</button></div>}
       {currentQuestion ? (
         <section className="flex min-h-[420px] flex-col items-center justify-center rounded border border-stone-200 bg-white p-6 text-center">
-          <div className="mb-4 text-sm text-stone-500">{index + 1} / {questions.length} · {currentQuestion.question_type.replaceAll("_", " ")}</div>
+          <div className="mb-4 text-sm text-stone-500">{index + 1} / {questions.length}{currentQuestion.question_type === "important_kanji_word" ? "" : ` · ${currentQuestion.question_type.replaceAll("_", " ")}`}</div>
           <QuestionPrompt key={currentQuestion.question_id} question={currentQuestion} />
           {shown ? <RevealDetails answer={reveal.answer} hideSecondary={isKanjiVocabularyMeaningQuestion(currentQuestion)} /> : <button disabled={busy} className="mb-8 min-h-14 rounded bg-moss px-8 font-semibold text-white disabled:opacity-50" onClick={showAnswer}>Show answer</button>}
           {shown && <div className="w-full max-w-md space-y-3">
@@ -184,7 +184,7 @@ function RevealDetails({ answer, hideSecondary = false }: { answer: RevealedAnsw
   const context = answer.context;
   if (!context) return <div className="mb-8 space-y-2"><div className="text-3xl font-semibold text-moss">{answer.answer_primary}</div>{!hideSecondary && answer.answer_secondary && <div className="text-xl text-stone-600">{answer.answer_secondary}</div>}</div>;
   return <div className="mb-8 w-full max-w-xl space-y-4 text-left">
-    {context.kind === "kanji" ? <><div className="text-center text-6xl font-semibold">{context.kanji}</div><p><strong>Meaning</strong> {context.meanings?.join(" / ") || "—"}</p><p><strong>Onyomi</strong> {context.onyomi?.join(" / ") || "—"}</p><p><strong>Kunyomi</strong> {context.kunyomi?.join(" / ") || "—"}</p>{Boolean(context.examples?.length) && <div><h3 className="mb-2 font-semibold">Examples</h3><div className="space-y-2">{context.examples?.map((example, i) => <div key={i} className="rounded border border-stone-200 p-3"><strong>{example.word}</strong> · {example.reading} · {example.meaning}</div>)}</div></div>}</> : <><div className="text-4xl font-semibold">{context.kanji}</div><p><strong>Target meaning</strong> {context.target_meaning}</p>{context.target_reading && <p><strong>Target reading</strong> {context.target_reading}</p>}<p><strong>Onyomi</strong> {context.onyomi?.join(" / ") || "—"}</p><p><strong>Kunyomi</strong> {context.kunyomi?.join(" / ") || "—"}</p><div className="border-t border-stone-200 pt-3"><p><strong>Word</strong> {context.word}</p><p><strong>Reading</strong> {context.reading}</p><p><strong>Meaning</strong> {context.meaning}</p></div></>}
+    {context.kind === "important_kanji_word" ? <div className="text-center"><div className="text-4xl font-semibold">{context.word}</div><p className="mt-3 text-2xl text-moss">{context.reading}</p><p className="mt-3 text-xl">{context.meaning}</p></div> : context.kind === "kanji" ? <><div className="text-center text-6xl font-semibold">{context.kanji}</div><p><strong>Meaning</strong> {context.meanings?.join(" / ") || "—"}</p><p><strong>Onyomi</strong> {context.onyomi?.join(" / ") || "—"}</p><p><strong>Kunyomi</strong> {context.kunyomi?.join(" / ") || "—"}</p>{Boolean(context.examples?.length) && <div><h3 className="mb-2 font-semibold">Examples</h3><div className="space-y-2">{context.examples?.map((example, i) => <div key={i} className="rounded border border-stone-200 p-3"><strong>{example.word}</strong> · {example.reading} · {example.meaning}</div>)}</div></div>}</> : <><div className="text-4xl font-semibold">{context.kanji}</div><p><strong>Target meaning</strong> {context.target_meaning}</p>{context.target_reading && <p><strong>Target reading</strong> {context.target_reading}</p>}<p><strong>Onyomi</strong> {context.onyomi?.join(" / ") || "—"}</p><p><strong>Kunyomi</strong> {context.kunyomi?.join(" / ") || "—"}</p><div className="border-t border-stone-200 pt-3"><p><strong>Word</strong> {context.word}</p><p><strong>Reading</strong> {context.reading}</p><p><strong>Meaning</strong> {context.meaning}</p></div></>}
   </div>;
 }
 

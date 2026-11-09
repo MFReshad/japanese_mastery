@@ -67,7 +67,7 @@ class PracticeSession(Base):
     __tablename__ = "practice_sessions"
     __table_args__ = (
         CheckConstraint(
-            "practice_type in ('vocabulary', 'kanji', 'mixed')",
+            "practice_type in ('vocabulary', 'kanji', 'mixed', 'important_kanji_words')",
             name="ck_session_practice_type",
         ),
         CheckConstraint(
@@ -81,7 +81,7 @@ class PracticeSession(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    practice_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    practice_type: Mapped[str] = mapped_column(String(30), nullable=False)
     mode: Mapped[str] = mapped_column(String(30), nullable=False)
     total_questions: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False

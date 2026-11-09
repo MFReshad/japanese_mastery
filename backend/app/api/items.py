@@ -6,10 +6,13 @@ from app.schemas.items import (
     KanjiSourceCreate,
     KanjiSourceRead,
     KanjiSourceUpdate,
+    KanjiExampleImportanceUpdate,
     VocabularySourceCreate,
     VocabularySourceRead,
     VocabularySourceUpdate,
 )
+from app.models.item import KanjiExample
+from app.errors import NotFound
 from app.services import item_management as operations
 
 router = APIRouter()
@@ -85,6 +88,20 @@ def update_kanji_source(
     source_id: int, payload: KanjiSourceUpdate, db: Session = Depends(get_db)
 ):
     return operations.update_kanji_source(source_id, payload, db)
+
+
+@router.patch("/kanji-examples/{example_id}/important")
+def update_kanji_example_importance(
+    example_id: int,
+    payload: KanjiExampleImportanceUpdate,
+    db: Session = Depends(get_db),
+):
+    example = db.get(KanjiExample, example_id)
+    if example is None:
+        raise NotFound("Kanji example not found")
+    example.is_important = payload.is_important
+    db.commit()
+    return {"id": example.id, "is_important": example.is_important}
 
 
 @router.delete("/kanji-sources/{source_id}", status_code=204)
