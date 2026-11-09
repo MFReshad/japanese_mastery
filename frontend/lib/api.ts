@@ -11,14 +11,15 @@ const inFlightGets = new Map<string, Promise<unknown>>();
 
 export type Book = { id: number; title: string; short_name: string | null; edition?: string | null; jlpt_level?: string | null; description?: string | null; vocabulary_count: number; kanji_count: number; chapter_count?: number; is_demo: boolean; is_active?: boolean };
 export type Chapter = { id: number; book_id: number; chapter_number: number; title: string; part: number | string | null; sort_order: number; vocabulary_count: number; kanji_count: number };
-export type VocabSource = { id: number; created_at: string; updated_at: string; source_id: string | null; vocabulary_id: number; book_id: number; chapter_id: number | null; item_order: number; original_item_order: number | null; manually_added: boolean; manually_reordered: boolean; expression_as_printed: string; reading_as_printed: string; meaning_as_printed: string; notes: string | null; source_file?: string | null; source_page?: string | null; source_section?: string | null; expression: string; reading: string; status: string };
+export type VocabSource = { id: number; created_at: string; updated_at: string; source_id: string | null; vocabulary_id: number; book_id: number; chapter_id: number | null; item_order: number; original_item_order: number | null; manually_added: boolean; manually_reordered: boolean; expression_as_printed: string; reading_as_printed: string; meaning_as_printed: string; knowledge_status: KnowledgeStatus; notes: string | null; source_file?: string | null; source_page?: string | null; source_section?: string | null; expression: string; reading: string; status: string };
 export type KanjiSource = { id: number; created_at: string; updated_at: string; source_id: string | null; kanji_id: number; book_id: number; chapter_id: number | null; item_order: number; character: string; meaning_as_printed: string; onyomi: string[]; kunyomi: string[]; examples: {id?: number; word: string; reading: string; meaning: string; sort_order: number; is_important?: boolean}[]; uncertain: boolean | null; notes: string | null; source_file?: string | null; source_page?: string | null; source_section?: string | null; extraction_batch?: string | null; status: string };
 export type Progress = { item_type: string; total: number; new: number; learning: number; weak: number; mastered: number };
-export type Coverage = { book_id: number; chapter_id: number; book_title: string; chapter_title: string; chapter_number: number; vocabulary_mastered_percent: number; kanji_mastered_percent: number };
+export type Coverage = { book_id: number; chapter_id: number; book_title: string; chapter_title: string; chapter_number: number; vocabulary_mastered_percent: number; kanji_mastered_percent: number; vocabulary_total: number; vocabulary_unknown: number; vocabulary_weak: number; kanji_example_total: number; kanji_example_unknown: number; kanji_weak: number };
 export type Question = { question_id: number; item_type: string; question_type: string; prompt: string };
 export type RevealedAnswer = { answer_primary: string; answer_secondary: string | null; context: { kind: "kanji" | "example" | "important_kanji_word"; kanji: string; meanings?: string[]; onyomi?: string[]; kunyomi?: string[]; examples?: { word: string; reading: string; meaning: string }[]; word?: string; reading?: string; meaning?: string; target_meaning?: string; target_reading?: string | null } | null };
 
 export type StudyKind = "vocabulary" | "kanji";
+export type KnowledgeStatus = "known" | "unknown" | null;
 export type StudyNextChapter = {
   chapter_id: number; chapter_number: number; chapter_title: string;
   part: number | string | null; first_source_id: string;
@@ -36,8 +37,9 @@ export type StudyDetail = {
   previous_source_id: string | null; next_source_id: string | null; position: number; lesson_count: number;
   next_chapter: StudyNextChapter | null;
   expression_as_printed?: string; reading_as_printed?: string; character?: string;
+  knowledge_status?: KnowledgeStatus;
   entry_number_as_printed?: number | null; onyomi_as_printed?: string[]; kunyomi_as_printed?: string[];
-  stroke_count_as_printed?: number | null; examples?: {id: number; word: string; reading: string; meaning: string; is_important: boolean}[];
+  stroke_count_as_printed?: number | null; examples?: {id: number; word: string; reading: string; meaning: string; is_important: boolean; knowledge_status: KnowledgeStatus}[];
   uncertain?: boolean | null; source_book_page?: number | null;
 };
 

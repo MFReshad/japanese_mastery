@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Play, Star } from "lucide-react";
-import { api, StudyDetail, StudyKind } from "@/lib/api";
+import { ArrowLeft, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { api, KnowledgeStatus, StudyDetail, StudyKind } from "@/lib/api";
 
 export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId: string }) {
   const [detail, setDetail] = useState<StudyDetail | null>(null);
   const [error, setError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [savingExamples, setSavingExamples] = useState<Set<number>>(() => new Set());
+  const [savingVocabulary, setSavingVocabulary] = useState(false);
   useEffect(() => {
     let active = true;
     setDetail(null); setError("");
@@ -35,19 +36,24 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
   const next = detail.next_source_id ? `/study/${kind}/${encodeURIComponent(detail.next_source_id)}` : null;
   const nextChapter = detail.next_chapter;
 
-  async function toggleImportant(exampleId: number, isImportant: boolean) {
-    if (!detail || savingExamples.has(exampleId)) return;
-    const nextImportant = !isImportant;
+  async function setKnowledge(target: "vocabulary" | "example", id: number, current: KnowledgeStatus, next: Exclude<KnowledgeStatus, null>) {
+    const value: KnowledgeStatus = current === next ? null : next;
+    if (target === "vocabulary") setSavingVocabulary(true);
+    else setSavingExamples(saving => new Set(saving).add(id));
     setSaveError("");
-    setSavingExamples(current => new Set(current).add(exampleId));
-    setDetail(current => current ? {...current, examples: current.examples?.map(example => example.id === exampleId ? {...example, is_important: nextImportant} : example)} : current);
+    setDetail(previous => previous ? target === "vocabulary"
+      ? {...previous, knowledge_status: value}
+      : {...previous, examples: previous.examples?.map(example => example.id === id ? {...example, knowledge_status: value} : example)} : previous);
     try {
-      await api(`/kanji-examples/${exampleId}/important`, {method: "PATCH", body: JSON.stringify({is_important: nextImportant})});
+      await api(target === "vocabulary" ? `/vocabulary-sources/${id}/knowledge` : `/kanji-examples/${id}/knowledge`, {method: "PATCH", body: JSON.stringify({knowledge_status: value})});
     } catch {
-      setDetail(current => current ? {...current, examples: current.examples?.map(example => example.id === exampleId ? {...example, is_important: isImportant} : example)} : current);
-      setSaveError(`Could not save ${detail.examples?.find(example => example.id === exampleId)?.word ?? "word"}. Please try again.`);
+      setDetail(previous => previous ? target === "vocabulary"
+        ? {...previous, knowledge_status: current}
+        : {...previous, examples: previous.examples?.map(example => example.id === id ? {...example, knowledge_status: current} : example)} : previous);
+      setSaveError("Could not save the knowledge mark. Please try again.");
     } finally {
-      setSavingExamples(current => { const next = new Set(current); next.delete(exampleId); return next; });
+      if (target === "vocabulary") setSavingVocabulary(false);
+      else setSavingExamples(saving => { const updated = new Set(saving); updated.delete(id); return updated; });
     }
   }
 
@@ -62,7 +68,7 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0 flex-1">
           {kind === "kanji" ? <h1 lang="ja" className="text-8xl font-semibold leading-none text-ink sm:text-9xl">{detail.character}</h1>
-            : <><h1 lang="ja" className="break-words text-5xl font-semibold leading-tight text-ink sm:text-6xl">{detail.expression_as_printed}</h1><p lang="ja" className="mt-3 break-words text-2xl text-stone-600">{detail.reading_as_printed || "Reading not listed"}</p></>}
+            : <><div className="flex items-start gap-4"><h1 lang="ja" className="min-w-0 flex-1 break-words text-5xl font-semibold leading-tight text-ink sm:text-6xl">{detail.expression_as_printed}</h1><KnowledgeButtons value={detail.knowledge_status ?? null} disabled={savingVocabulary} setValue={(value) => void setKnowledge("vocabulary", detail.source_entry_id, detail.knowledge_status ?? null, value)} /></div><p lang="ja" className="mt-3 break-words text-2xl text-stone-600">{detail.reading_as_printed || "Reading not listed"}</p></>}
         </div>
         <div className="text-right text-sm text-stone-500">
           <p>{detail.chapter_title}</p>
@@ -88,9 +94,10 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
         <div className="mb-4 flex items-baseline justify-between gap-3"><h2 className="text-sm font-semibold uppercase text-stone-500">Examples</h2><span className="text-sm text-stone-500">{detail.examples?.length ?? 0}</span></div>
         {saveError && <p role="alert" className="mb-3 text-sm text-persimmon">{saveError}</p>}
         {detail.examples?.length ? <div className="grid gap-3 sm:grid-cols-2">{detail.examples.map((example) => <div key={example.id} className="rounded border border-stone-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-3"><p lang="ja" className="break-words text-2xl font-semibold">{example.word}</p><button type="button" disabled={savingExamples.has(example.id)} onClick={() => void toggleImportant(example.id, example.is_important)} aria-label={example.is_important ? `Remove ${example.word} from important words` : `Mark ${example.word} as important`} title={example.is_important ? "Remove from important words" : "Mark as important"} className="flex min-h-10 min-w-10 items-center justify-center rounded border border-stone-200 text-moss disabled:opacity-50"><Star size={19} fill={example.is_important ? "currentColor" : "none"} /></button></div>
+          <p lang="ja" className="break-words text-2xl font-semibold">{example.word}</p>
           <p lang="ja" className="mt-1 break-words text-base text-moss">{example.reading}</p>
           <p className="mt-3 break-words text-stone-700">{example.meaning}</p>
+          <div className="mt-3"><KnowledgeButtons value={example.knowledge_status} disabled={savingExamples.has(example.id)} setValue={(value) => void setKnowledge("example", example.id, example.knowledge_status, value)} /></div>
         </div>)}</div> : <p className="text-stone-500">No examples in this source.</p>}
       </section>
     </>}
@@ -126,4 +133,11 @@ function ReadingList({ label, readings }: { label: string; readings: string[] })
     {readings.length ? <ul className="flex flex-wrap gap-2">{readings.map((reading, index) => <li key={`${index}-${reading}`} lang="ja" className="rounded border border-stone-300 bg-white px-3 py-2 text-lg">{reading}</li>)}</ul>
       : <p className="text-stone-500">Not listed</p>}
   </section>;
+}
+
+function KnowledgeButtons({value, disabled, setValue}: {value: KnowledgeStatus; disabled: boolean; setValue: (value: Exclude<KnowledgeStatus, null>) => void}) {
+  return <div className="flex gap-2" aria-label="Knowledge mark">
+    <button type="button" disabled={disabled} aria-label="I know this" title="I know this" onClick={() => setValue("known")} className={`flex min-h-10 min-w-10 items-center justify-center rounded border font-bold ${value === "known" ? "border-moss bg-moss text-white" : "border-stone-300 text-moss"}`}>✓</button>
+    <button type="button" disabled={disabled} aria-label="I do not know this" title="I do not know this" onClick={() => setValue("unknown")} className={`flex min-h-10 min-w-10 items-center justify-center rounded border font-bold ${value === "unknown" ? "border-persimmon bg-persimmon text-white" : "border-stone-300 text-persimmon"}`}>✕</button>
+  </div>;
 }

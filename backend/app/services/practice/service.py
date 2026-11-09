@@ -22,7 +22,7 @@ from .cache import practice_session_cache
 from .types import QuestionDraft
 from .selection import _eligible_sources
 from .vocabulary_questions import question_from_vocab
-from .kanji_questions import questions_from_kanji, important_word_questions
+from .kanji_questions import questions_from_kanji, example_word_questions
 
 
 def start_practice(
@@ -36,10 +36,25 @@ def start_practice(
             for source in vocab
             if (draft := question_from_vocab(source)) is not None
         )
-    if payload.practice_type in ("kanji", "mixed", "important_kanji_words"):
+    if payload.practice_type in ("kanji", "mixed", "important_kanji_words", "kanji_example_words"):
         kanji = _eligible_sources(db, payload, "kanji")
-        generator = important_word_questions if payload.practice_type == "important_kanji_words" else questions_from_kanji
-        drafts.extend(draft for source in kanji for draft in generator(source))
+        if payload.practice_type in ("important_kanji_words", "kanji_example_words"):
+            selected_conditions = set(payload.conditions)
+            manual_knowledge = selected_conditions & {"known", "unknown"}
+            # With mixed conditions (for example ✕ OR Weak), the automatic
+            # source-level match must still include all of that source's words.
+            knowledge = manual_knowledge if not (selected_conditions - {"known", "unknown"}) else set()
+            drafts.extend(
+                draft
+                for source in kanji
+                for draft in example_word_questions(
+                    source,
+                    important_only=payload.practice_type == "important_kanji_words",
+                    knowledge=knowledge or None,
+                )
+            )
+        else:
+            drafts.extend(draft for source in kanji for draft in questions_from_kanji(source))
     if payload.mode == "starred_priority":
         random.shuffle(
             drafts

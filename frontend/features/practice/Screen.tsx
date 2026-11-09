@@ -1,5 +1,4 @@
 "use client";
-import { BookChapterFilters } from "@/components/BookChapterFilters";
 import { useLookupRefresh } from "@/features/useLookupRefresh";
 
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -30,9 +29,10 @@ function PracticeContent() {
   const [practiceType, setPracticeType] = useState(params.get("practice_type") ?? "mixed");
   const [mode, setMode] = useState(params.get("mode") ?? "random");
   const [bookId, setBookId] = useState(params.get("book_id") ?? "");
-  const [chapterId, setChapterId] = useState(params.get("chapter_id") ?? "");
+  const [chapterIds, setChapterIds] = useState<string[]>(() => params.getAll("chapter_id"));
+  const [conditions, setConditions] = useState<string[]>([]);
   const sourceEntryId = params.get("source_entry_id");
-  const [count, setCount] = useState(sourceEntryId ? "1" : chapterId ? "All" : "10");
+  const [count, setCount] = useState(sourceEntryId ? "1" : chapterIds.length ? "All" : "10");
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
@@ -48,7 +48,7 @@ function PracticeContent() {
   const [pendingCount, setPendingCount] = useState(0);
   const [saveWarning, setSaveWarning] = useState("");
   useEffect(() => {
-    getActiveBooks().then(loaded => { setBooks(loaded); if (bookId && !loaded.some(book => String(book.id) === bookId)) { setBookId(""); setChapterId(""); } }).catch(reason => setError(String(reason)));
+    getActiveBooks().then(loaded => { setBooks(loaded); if (bookId && !loaded.some(book => String(book.id) === bookId)) { setBookId(""); setChapterIds([]); } }).catch(reason => setError(String(reason)));
     if (bookId) {
       getChaptersByBook(Number(bookId)).then(setChapters).catch(reason => setError(String(reason)));
     } else {
@@ -92,7 +92,7 @@ function PracticeContent() {
     if (requestInFlight.current || sessionInProgress.current || sessionActive || queueState().count) return;
     requestInFlight.current = true; setBusy(true); setError("");
     try {
-      const res = await startPractice({ practice_type: practiceType, mode, book_ids: bookId ? [Number(bookId)] : [], chapter_ids: chapterId ? [Number(chapterId)] : [], source_entry_ids: sourceEntryId ? [Number(sourceEntryId)] : [], question_count: count === "All" ? null : Number(count) });
+      const res = await startPractice({ practice_type: practiceType, mode, book_ids: bookId ? [Number(bookId)] : [], chapter_ids: chapterIds.map(Number), source_entry_ids: sourceEntryId ? [Number(sourceEntryId)] : [], question_count: count === "All" ? null : Number(count), conditions });
       sessionStorage.setItem(activeKey, JSON.stringify({version: 1, sessionId: res.session_id, questions: res.questions, position: 0}));
       sessionInProgress.current = res.questions.length > 0;
       submitted.current.clear();
@@ -122,15 +122,12 @@ function PracticeContent() {
   return (
     <div className="space-y-4">
       <section className="grid gap-2 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed", "important_kanji_words"]} disabled={sessionActive || busy} />
+        <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed", "kanji_example_words"]} disabled={sessionActive || busy} />
         <Select value={mode} onChange={setMode} options={["random", "wrong", "weak", "never_practiced", "mastery_review", "starred", "starred_priority"]} disabled={sessionActive || busy} />
-        <BookChapterFilters books={books} chapters={chapters} bookId={bookId} chapterId={chapterId} disabled={sessionActive || busy}
-          onBookChange={nextBookId => {
-            setBookId(nextBookId); setChapterId("");
-            (nextBookId ? getChaptersByBook(Number(nextBookId)) : getChapters())
-              .then(loaded => setChapters(current => mergeChapters(current, loaded))).catch(reason => setError(String(reason)));
-          }} onChapterChange={setChapterId} />
+        <select aria-label="Book" disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={bookId} onChange={(event) => { const nextBookId = event.target.value; setBookId(nextBookId); setChapterIds([]); (nextBookId ? getChaptersByBook(Number(nextBookId)) : getChapters()).then(loaded => setChapters(current => mergeChapters(current, loaded))).catch(reason => setError(String(reason))); }}><option value="">All books</option>{books.map(book => <option key={book.id} value={book.id}>{book.title}</option>)}</select>
         <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={count} onChange={(e) => setCount(e.target.value)}>{["1", "10", "20", "30", "50", "All"].map((v) => <option key={v} value={v}>{v === "All" ? "All (up to 2,000)" : v}</option>)}</select>
+        <ChapterPicker books={books} chapters={chapters.filter(chapter => !bookId || String(chapter.book_id) === bookId)} selected={chapterIds} setSelected={setChapterIds} disabled={sessionActive || busy} />
+        <fieldset disabled={sessionActive || busy} className="rounded border border-stone-200 p-3 sm:col-span-2 lg:col-span-5"><legend className="px-1 text-sm font-semibold">Custom conditions (match any selected)</legend><div className="mt-1 flex flex-wrap gap-2">{[["known", "✓ Know"], ["unknown", "✕ Don’t know"], ["weak", "Weak"], ["wrong", "Wrong"], ["never_practiced", "New"], ["learning", "Learning"], ["mastered", "Mastered"], ["starred", "Starred"]].map(([value, label]) => <label key={value} className={`cursor-pointer rounded border px-3 py-2 text-sm ${conditions.includes(value) ? "border-ink bg-ink text-white" : "border-stone-300"}`}><input type="checkbox" className="sr-only" checked={conditions.includes(value)} onChange={() => setConditions(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])} />{label}</label>)}</div>{conditions.length > 0 && <p className="mt-2 text-xs text-stone-500">An item is included when it matches any selected condition.</p>}</fieldset>
         <button disabled={sessionActive || busy} className="min-h-12 rounded bg-ink px-4 font-semibold text-white disabled:opacity-50 sm:col-span-2 lg:col-span-5" onClick={start}>{sessionActive ? "Session in progress" : busy ? "Please wait..." : sessionId ? "New session" : "Start"}</button>
       </section>
       {error && <p role="alert" className="text-persimmon">{error}</p>}
@@ -190,6 +187,26 @@ function RevealDetails({ answer, hideSecondary = false }: { answer: RevealedAnsw
 
 function Select({ value, onChange, options, disabled }: { value: string; onChange: (value: string) => void; options: string[]; disabled?: boolean }) {
   return <select disabled={disabled} className="min-h-11 rounded border border-stone-300 px-3" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o.replaceAll("_", " ")}</option>)}</select>;
+}
+
+function ChapterPicker({books, chapters, selected, setSelected, disabled}: {books: Book[]; chapters: Chapter[]; selected: string[]; setSelected: (value: string[] | ((current: string[]) => string[])) => void; disabled: boolean}) {
+  const [search, setSearch] = useState("");
+  const visible = chapters.filter(chapter => {
+    const book = books.find(entry => entry.id === chapter.book_id);
+    return `${book?.title ?? ""} ${chapter.chapter_number} ${chapter.title}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
+  });
+  const selectedNames = chapters.filter(chapter => selected.includes(String(chapter.id)));
+  return <details className="group relative sm:col-span-2 lg:col-span-5">
+    <summary className={`flex min-h-12 list-none items-center justify-between rounded border border-stone-300 bg-white px-4 font-medium marker:content-none ${disabled ? "pointer-events-none opacity-50" : "cursor-pointer hover:border-moss"}`}>
+      <span>{selected.length ? `${selected.length} chapter${selected.length === 1 ? "" : "s"} selected` : "All chapters"}</span>
+      <span className="text-sm font-normal text-stone-500">Choose chapters <span className="ml-1 inline-block transition group-open:rotate-180">⌄</span></span>
+    </summary>
+    <div className="absolute inset-x-0 z-30 mt-2 rounded border border-stone-300 bg-white p-3 shadow-xl">
+      <div className="flex flex-wrap gap-2"><input aria-label="Search chapters" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search chapters…" className="min-h-11 min-w-56 flex-1 rounded border border-stone-300 px-3" /><button type="button" className="min-h-11 rounded border border-stone-300 px-3 text-sm font-medium" onClick={() => setSelected(chapters.map(chapter => String(chapter.id)))}>Select all</button><button type="button" className="min-h-11 rounded border border-stone-300 px-3 text-sm font-medium" onClick={() => setSelected([])}>Clear</button></div>
+      {selectedNames.length > 0 && <p className="mt-3 truncate text-sm text-stone-500">Selected: {selectedNames.map(chapter => `L${chapter.chapter_number}`).join(", ")}</p>}
+      <div className="mt-3 max-h-72 overflow-y-auto border-t border-stone-200 pt-2">{visible.map(chapter => { const id = String(chapter.id); const book = books.find(entry => entry.id === chapter.book_id); return <label key={chapter.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded px-2 hover:bg-stone-50"><input type="checkbox" checked={selected.includes(id)} onChange={() => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])} className="h-4 w-4 accent-moss" /><span className="min-w-0"><span className="font-medium">Lesson {chapter.chapter_number}</span><span className="ml-2 text-stone-600">{chapter.title}</span>{!book || books.length < 2 ? null : <span className="ml-2 text-xs text-stone-400">{book.title}</span>}</span></label>; })}{visible.length === 0 && <p className="p-4 text-center text-sm text-stone-500">No chapters found.</p>}</div>
+    </div>
+  </details>;
 }
 
 function mergeChapters(current: Chapter[], loaded: Chapter[]) {

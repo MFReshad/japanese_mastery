@@ -237,6 +237,10 @@ def update_kanji_source(source_id: int, payload: KanjiSourceUpdate, db: Session 
             (example.word, example.reading, example.meaning): example.is_important
             for example in source.examples
         }
+        knowledge = {
+            (example.word, example.reading, example.meaning): example.knowledge_status
+            for example in source.examples
+        }
         source.examples.clear()
         source.examples.extend(
             KanjiExample(
@@ -246,6 +250,8 @@ def update_kanji_source(source_id: int, payload: KanjiSourceUpdate, db: Session 
                 sort_order=example.get("sort_order", 0),
                 is_important=example.get("is_important", False)
                 or important.get((example["word"], example["reading"], example["meaning"]), False),
+                knowledge_status=example.get("knowledge_status")
+                or knowledge.get((example["word"], example["reading"], example["meaning"])),
             )
             for example in examples
         )

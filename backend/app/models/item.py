@@ -89,6 +89,7 @@ class VocabularySource(TimestampMixin, Base):
     repaired: Mapped[Optional[bool]] = mapped_column(Boolean)
     repair_note: Mapped[Optional[str]] = mapped_column(Text)
     raw_line: Mapped[Optional[str]] = mapped_column(Text)
+    knowledge_status: Mapped[Optional[str]] = mapped_column(String(10))
 
     vocabulary: Mapped[Vocabulary] = relationship(back_populates="sources")
 
@@ -194,6 +195,7 @@ class KanjiExample(Base):
     is_important: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
+    knowledge_status: Mapped[Optional[str]] = mapped_column(String(10))
     sort_order: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )

@@ -43,11 +43,31 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
         stmt = stmt.where(model.item_order >= payload.order_start)
     if payload.order_end is not None:
         stmt = stmt.where(model.item_order <= payload.order_end)
-    if payload.mode != "random":
+    conditions = set(payload.conditions)
+    automatic_conditions = conditions - {"known", "unknown"}
+    if payload.mode != "random" or automatic_conditions:
         stmt = stmt.outerjoin(
             ItemProgress,
             and_(ItemProgress.item_type == item_type, ItemProgress.item_id == item_id),
         )
+    if conditions:
+        clauses = []
+        for condition in conditions:
+            if condition in ("known", "unknown"):
+                if item_type == "vocabulary":
+                    clauses.append(VocabularySource.knowledge_status == condition)
+                else:
+                    clauses.append(KanjiSource.examples.any(KanjiExample.knowledge_status == condition))
+            elif condition == "never_practiced":
+                clauses.append(or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0))
+            elif condition == "wrong":
+                clauses.append(or_(ItemProgress.status == "weak", ItemProgress.last_result == "wrong"))
+            elif condition == "starred":
+                clauses.append(ItemProgress.is_starred.is_(True))
+            else:
+                clauses.append(and_(ItemProgress.attempts > 0, ItemProgress.status == condition))
+        stmt = stmt.where(or_(*clauses))
+    elif payload.mode != "random":
         if payload.mode == "never_practiced":
             stmt = stmt.where(
                 or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)

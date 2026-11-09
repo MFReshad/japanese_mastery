@@ -8,7 +8,7 @@ from app.schemas.common import OrmModel
 
 
 class PracticeStartRequest(OrmModel):
-    practice_type: Literal["vocabulary", "kanji", "mixed", "important_kanji_words"] = "mixed"
+    practice_type: Literal["vocabulary", "kanji", "mixed", "important_kanji_words", "kanji_example_words"] = "mixed"
     mode: Literal[
         "random",
         "weak",
@@ -25,6 +25,7 @@ class PracticeStartRequest(OrmModel):
     order_start: int | None = None
     order_end: int | None = None
     question_count: int | None = Field(default=10, ge=1, le=2000)
+    conditions: list[Literal["known", "unknown", "weak", "wrong", "never_practiced", "learning", "mastered", "starred"]] = []
 
     @model_validator(mode="after")
     def validate_ranges(self):
@@ -93,6 +94,12 @@ class CoverageChapter(OrmModel):
     chapter_number: int
     vocabulary_mastered_percent: float
     kanji_mastered_percent: float
+    vocabulary_total: int = 0
+    vocabulary_unknown: int = 0
+    vocabulary_weak: int = 0
+    kanji_example_total: int = 0
+    kanji_example_unknown: int = 0
+    kanji_weak: int = 0
 
 
 class AnswerResult(OrmModel):

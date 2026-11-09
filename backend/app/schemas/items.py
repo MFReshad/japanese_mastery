@@ -49,6 +49,7 @@ class VocabularySourceRead(Timestamped):
     expression: str
     reading: str
     status: str = "new"
+    knowledge_status: Literal["known", "unknown"] | None = None
 
 
 class KanjiExampleIn(OrmModel):
@@ -58,10 +59,15 @@ class KanjiExampleIn(OrmModel):
     meaning: str
     sort_order: int = 0
     is_important: bool = False
+    knowledge_status: Literal["known", "unknown"] | None = None
 
 
 class KanjiExampleImportanceUpdate(OrmModel):
     is_important: bool
+
+
+class KnowledgeStatusUpdate(OrmModel):
+    knowledge_status: Literal["known", "unknown"] | None
 
 
 class KanjiSourceCreate(OrmModel):

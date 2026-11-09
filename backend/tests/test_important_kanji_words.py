@@ -72,3 +72,27 @@ def test_regular_kanji_practice_is_unchanged(client, db_session):
         json={"practice_type": "kanji", "source_entry_ids": [source["id"]], "question_count": None},
     ).json()
     assert any("Target kanji: 住" in question["prompt"] for question in started["questions"] if question["question_type"].startswith("example_kanji_"))
+
+
+def test_custom_unknown_condition_and_multiple_chapters(client):
+    book = client.post("/books", json={"title": "Custom", "short_name": "C"}).json()
+    chapters = [client.post("/chapters", json={"book_id": book["id"], "chapter_number": number, "title": f"L{number}"}).json() for number in (1, 2)]
+    sources = []
+    for number, chapter in enumerate(chapters, 1):
+        sources.append(client.post("/vocabulary-sources", json={"book_id": book["id"], "chapter_id": chapter["id"], "item_order": 1, "expression": f"言葉{number}", "reading": f"ことば{number}", "meaning": f"word {number}"}).json())
+    client.patch(f"/vocabulary-sources/{sources[0]['id']}/knowledge", json={"knowledge_status": "unknown"})
+    client.patch(f"/vocabulary-sources/{sources[1]['id']}/knowledge", json={"knowledge_status": "known"})
+    started = client.post("/practice/start", json={"practice_type": "vocabulary", "chapter_ids": [chapter["id"] for chapter in chapters], "conditions": ["unknown"], "question_count": 10})
+    assert started.status_code == 200, started.text
+    assert len(started.json()["questions"]) == 1
+
+
+def test_kanji_example_knowledge_filter(client):
+    book, chapter = _book_and_chapter(client)
+    source = client.post("/kanji-sources", json={"book_id": book["id"], "chapter_id": chapter["id"], "item_order": 1, "character": "住", "meaning": "live", "examples": [{"word": "住む", "reading": "すむ", "meaning": "to live"}, {"word": "住所", "reading": "じゅうしょ", "meaning": "address"}]}).json()
+    detail = client.get(f"/study/kanji/{source['id']}").json()
+    target = next(example for example in detail["examples"] if example["word"] == "住所")
+    client.patch(f"/kanji-examples/{target['id']}/knowledge", json={"knowledge_status": "unknown"})
+    started = client.post("/practice/start", json={"practice_type": "kanji_example_words", "chapter_ids": [chapter["id"]], "conditions": ["unknown"], "question_count": 10})
+    assert started.status_code == 200, started.text
+    assert [question["prompt"] for question in started.json()["questions"]] == ["住所"]

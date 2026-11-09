@@ -223,6 +223,7 @@ def study_detail(kind: str, source_id: str, db: Session = None):
             **common,
             "expression_as_printed": source.expression_as_printed,
             "reading_as_printed": source.reading_as_printed,
+            "knowledge_status": source.knowledge_status,
         }
     return {
         **common,
@@ -238,6 +239,7 @@ def study_detail(kind: str, source_id: str, db: Session = None):
                 "reading": example.reading,
                 "meaning": example.meaning,
                 "is_important": example.is_important,
+                "knowledge_status": example.knowledge_status,
             }
             for example in sorted(source.examples, key=lambda e: (e.sort_order, e.id))
         ],

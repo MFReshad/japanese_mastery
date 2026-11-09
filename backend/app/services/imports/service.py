@@ -678,8 +678,28 @@ def _import_kanji_sources(
             by_source[row["id"]] = item
             examples_changed = True
         if examples_changed:
+            preferences = {
+                (example.word, example.reading, example.meaning): (
+                    example.is_important,
+                    example.knowledge_status,
+                )
+                for example in item.examples
+            }
             item.examples.clear()
-            item.examples.extend(KanjiExample(**example) for example in examples)
+            item.examples.extend(
+                KanjiExample(
+                    **example,
+                    is_important=preferences.get(
+                        (example["word"], example["reading"], example["meaning"]),
+                        (False, None),
+                    )[0],
+                    knowledge_status=preferences.get(
+                        (example["word"], example["reading"], example["meaning"]),
+                        (False, None),
+                    )[1],
+                )
+                for example in examples
+            )
         baseline = dict(item.imported_baseline or {})
         baseline.setdefault("_original_source", row)
         baseline["_source"] = row

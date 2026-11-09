@@ -67,7 +67,7 @@ class PracticeSession(Base):
     __tablename__ = "practice_sessions"
     __table_args__ = (
         CheckConstraint(
-            "practice_type in ('vocabulary', 'kanji', 'mixed', 'important_kanji_words')",
+            "practice_type in ('vocabulary', 'kanji', 'mixed', 'important_kanji_words', 'kanji_example_words')",
             name="ck_session_practice_type",
         ),
         CheckConstraint(

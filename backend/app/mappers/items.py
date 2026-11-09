@@ -26,6 +26,7 @@ def vocab_out(source: VocabularySource, status: str = "new") -> VocabularySource
             "expression": source.vocabulary.expression,
             "reading": source.vocabulary.reading,
             "status": status,
+            "knowledge_status": source.knowledge_status,
         }
     )
 

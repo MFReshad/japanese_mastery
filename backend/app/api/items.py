@@ -7,13 +7,15 @@ from app.schemas.items import (
     KanjiSourceRead,
     KanjiSourceUpdate,
     KanjiExampleImportanceUpdate,
+    KnowledgeStatusUpdate,
     VocabularySourceCreate,
     VocabularySourceRead,
     VocabularySourceUpdate,
 )
-from app.models.item import KanjiExample
+from app.models.item import KanjiExample, VocabularySource
 from app.errors import NotFound
 from app.services import item_management as operations
+from app.services.lookup_cache import lookup_cache
 
 router = APIRouter()
 
@@ -102,6 +104,32 @@ def update_kanji_example_importance(
     example.is_important = payload.is_important
     db.commit()
     return {"id": example.id, "is_important": example.is_important}
+
+
+@router.patch("/kanji-examples/{example_id}/knowledge")
+def update_kanji_example_knowledge(
+    example_id: int, payload: KnowledgeStatusUpdate, db: Session = Depends(get_db)
+):
+    example = db.get(KanjiExample, example_id)
+    if example is None:
+        raise NotFound("Kanji example not found")
+    example.knowledge_status = payload.knowledge_status
+    db.commit()
+    lookup_cache.invalidate_progress()
+    return {"id": example.id, "knowledge_status": example.knowledge_status}
+
+
+@router.patch("/vocabulary-sources/{source_id}/knowledge")
+def update_vocabulary_knowledge(
+    source_id: int, payload: KnowledgeStatusUpdate, db: Session = Depends(get_db)
+):
+    source = db.get(VocabularySource, source_id)
+    if source is None:
+        raise NotFound("Vocabulary source not found")
+    source.knowledge_status = payload.knowledge_status
+    db.commit()
+    lookup_cache.invalidate_progress()
+    return {"id": source.id, "knowledge_status": source.knowledge_status}
 
 
 @router.delete("/kanji-sources/{source_id}", status_code=204)
