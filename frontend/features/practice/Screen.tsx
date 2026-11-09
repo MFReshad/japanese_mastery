@@ -4,6 +4,7 @@ import { useLookupRefresh } from "@/features/useLookupRefresh";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Book, Chapter, getActiveBooks, getCachedActiveBooks, getCachedChapters, getCachedChaptersByBook, getChapters, getChaptersByBook, Question, RevealedAnswer } from "@/lib/api";
+import { sortChaptersByPart } from "@/lib/chapterSort";
 
 import { drainQueue, enqueue, queuedIds, queueState, retryFailed, subscribeQueue } from "@/features/practice/answerQueue";
 import { startPractice, resumePractice, revealQuestion } from "./api";
@@ -30,7 +31,7 @@ function PracticeContent() {
   const [mode, setMode] = useState(params.get("mode") ?? "random");
   const [bookId, setBookId] = useState(params.get("book_id") ?? "");
   const [chapterIds, setChapterIds] = useState<string[]>(() => params.getAll("chapter_id"));
-  const [conditions, setConditions] = useState<string[]>([]);
+  const [conditions, setConditions] = useState<string[]>(() => params.getAll("condition"));
   const sourceEntryId = params.get("source_entry_id");
   const [count, setCount] = useState(sourceEntryId ? "1" : chapterIds.length ? "All" : "10");
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -191,18 +192,19 @@ function Select({ value, onChange, options, disabled }: { value: string; onChang
 
 function ChapterPicker({books, chapters, selected, setSelected, disabled}: {books: Book[]; chapters: Chapter[]; selected: string[]; setSelected: (value: string[] | ((current: string[]) => string[])) => void; disabled: boolean}) {
   const [search, setSearch] = useState("");
-  const visible = chapters.filter(chapter => {
+  const orderedChapters = sortChaptersByPart(chapters);
+  const visible = orderedChapters.filter(chapter => {
     const book = books.find(entry => entry.id === chapter.book_id);
     return `${book?.title ?? ""} ${chapter.chapter_number} ${chapter.title}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
   });
-  const selectedNames = chapters.filter(chapter => selected.includes(String(chapter.id)));
+  const selectedNames = orderedChapters.filter(chapter => selected.includes(String(chapter.id)));
   return <details className="group relative sm:col-span-2 lg:col-span-5">
     <summary className={`flex min-h-12 list-none items-center justify-between rounded border border-stone-300 bg-white px-4 font-medium marker:content-none ${disabled ? "pointer-events-none opacity-50" : "cursor-pointer hover:border-moss"}`}>
       <span>{selected.length ? `${selected.length} chapter${selected.length === 1 ? "" : "s"} selected` : "All chapters"}</span>
       <span className="text-sm font-normal text-stone-500">Choose chapters <span className="ml-1 inline-block transition group-open:rotate-180">⌄</span></span>
     </summary>
     <div className="absolute inset-x-0 z-30 mt-2 rounded border border-stone-300 bg-white p-3 shadow-xl">
-      <div className="flex flex-wrap gap-2"><input aria-label="Search chapters" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search chapters…" className="min-h-11 min-w-56 flex-1 rounded border border-stone-300 px-3" /><button type="button" className="min-h-11 rounded border border-stone-300 px-3 text-sm font-medium" onClick={() => setSelected(chapters.map(chapter => String(chapter.id)))}>Select all</button><button type="button" className="min-h-11 rounded border border-stone-300 px-3 text-sm font-medium" onClick={() => setSelected([])}>Clear</button></div>
+      <div className="flex flex-wrap gap-2"><input aria-label="Search chapters" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search chapters…" className="min-h-11 min-w-56 flex-1 rounded border border-stone-300 px-3" /><button type="button" className="min-h-11 rounded border border-stone-300 px-3 text-sm font-medium" onClick={() => setSelected(orderedChapters.map(chapter => String(chapter.id)))}>Select all</button><button type="button" className="min-h-11 rounded border border-stone-300 px-3 text-sm font-medium" onClick={() => setSelected([])}>Clear</button></div>
       {selectedNames.length > 0 && <p className="mt-3 truncate text-sm text-stone-500">Selected: {selectedNames.map(chapter => `L${chapter.chapter_number}`).join(", ")}</p>}
       <div className="mt-3 max-h-72 overflow-y-auto border-t border-stone-200 pt-2">{visible.map(chapter => { const id = String(chapter.id); const book = books.find(entry => entry.id === chapter.book_id); return <label key={chapter.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded px-2 hover:bg-stone-50"><input type="checkbox" checked={selected.includes(id)} onChange={() => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])} className="h-4 w-4 accent-moss" /><span className="min-w-0"><span className="font-medium">Lesson {chapter.chapter_number}</span><span className="ml-2 text-stone-600">{chapter.title}</span>{!book || books.length < 2 ? null : <span className="ml-2 text-xs text-stone-400">{book.title}</span>}</span></label>; })}{visible.length === 0 && <p className="p-4 text-center text-sm text-stone-500">No chapters found.</p>}</div>
     </div>
@@ -212,5 +214,5 @@ function ChapterPicker({books, chapters, selected, setSelected, disabled}: {book
 function mergeChapters(current: Chapter[], loaded: Chapter[]) {
   const byId = new Map(current.map((chapter) => [chapter.id, chapter]));
   for (const chapter of loaded) byId.set(chapter.id, chapter);
-  return Array.from(byId.values()).sort((a, b) => a.book_id - b.book_id || a.sort_order - b.sort_order || a.chapter_number - b.chapter_number);
+  return sortChaptersByPart(Array.from(byId.values()));
 }

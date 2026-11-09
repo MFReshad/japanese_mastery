@@ -55,7 +55,8 @@ def book_coverage(db: Session = None):
             select(
                 model.chapter_id,
                 func.count(model.id).label("total"),
-                func.count(ItemProgress.id).label("mastered"),
+                func.count(ItemProgress.id).label("practiced"),
+                func.count(ItemProgress.id).filter(ItemProgress.status == "mastered").label("mastered"),
             )
             .outerjoin(
                 ItemProgress,
@@ -63,7 +64,6 @@ def book_coverage(db: Session = None):
                     ItemProgress.item_type == item_type,
                     ItemProgress.item_id == id_column,
                     ItemProgress.attempts > 0,
-                    ItemProgress.status == "mastered",
                 ),
             )
             .where(model.chapter_id.is_not(None))
@@ -78,6 +78,7 @@ def book_coverage(db: Session = None):
         select(
             VocabularySource.chapter_id,
             func.count(VocabularySource.id).filter(VocabularySource.knowledge_status == "unknown").label("unknown"),
+            func.count(VocabularySource.id).filter(VocabularySource.knowledge_status == "known").label("known"),
             func.count(VocabularySource.id).filter(ItemProgress.status == "weak").label("weak"),
         )
         .outerjoin(ItemProgress, and_(ItemProgress.item_type == "vocabulary", ItemProgress.item_id == VocabularySource.vocabulary_id))
@@ -98,6 +99,7 @@ def book_coverage(db: Session = None):
             KanjiSource.chapter_id,
             func.count(KanjiExample.id).label("total"),
             func.count(KanjiExample.id).filter(KanjiExample.knowledge_status == "unknown").label("unknown"),
+            func.count(KanjiExample.id).filter(KanjiExample.knowledge_status == "known").label("known"),
         )
         .join(KanjiExample, KanjiExample.kanji_source_id == KanjiSource.id)
         .where(KanjiSource.chapter_id.is_not(None))
@@ -109,16 +111,21 @@ def book_coverage(db: Session = None):
             Chapter,
             Book,
             func.coalesce(vocabulary.c.total, 0),
+            func.coalesce(vocabulary.c.practiced, 0),
             func.coalesce(vocabulary.c.mastered, 0),
             func.coalesce(kanji.c.total, 0),
+            func.coalesce(kanji.c.practiced, 0),
             func.coalesce(kanji.c.mastered, 0),
             func.coalesce(vocab_lacking.c.unknown, 0),
+            func.coalesce(vocab_lacking.c.known, 0),
             func.coalesce(vocab_lacking.c.weak, 0),
             func.coalesce(example_lacking.c.total, 0),
             func.coalesce(example_lacking.c.unknown, 0),
+            func.coalesce(example_lacking.c.known, 0),
             func.coalesce(kanji_lacking.c.weak, 0),
         )
         .join(Book)
+        .where(Book.is_active.is_(True))
         .outerjoin(vocabulary, vocabulary.c.chapter_id == Chapter.id)
         .outerjoin(kanji, kanji.c.chapter_id == Chapter.id)
         .outerjoin(vocab_lacking, vocab_lacking.c.chapter_id == Chapter.id)
@@ -130,13 +137,17 @@ def book_coverage(db: Session = None):
         chapter,
         book,
         vocab_total,
+        vocab_practiced,
         vocab_mastered,
         kanji_total,
+        kanji_practiced,
         kanji_mastered,
         vocab_unknown,
+        vocab_known,
         vocab_weak,
         example_total,
         example_unknown,
+        example_known,
         kanji_weak,
     ) in db.execute(stmt):
         rows.append(
@@ -153,10 +164,17 @@ def book_coverage(db: Session = None):
                     (kanji_mastered / kanji_total * 100) if kanji_total else 0, 1
                 ),
                 vocabulary_total=vocab_total,
+                vocabulary_practiced=vocab_practiced,
+                vocabulary_mastered=vocab_mastered,
                 vocabulary_unknown=vocab_unknown,
+                vocabulary_known=vocab_known,
                 vocabulary_weak=vocab_weak,
                 kanji_example_total=example_total,
+                kanji_total=kanji_total,
+                kanji_practiced=kanji_practiced,
+                kanji_mastered=kanji_mastered,
                 kanji_example_unknown=example_unknown,
+                kanji_example_known=example_known,
                 kanji_weak=kanji_weak,
             )
         )

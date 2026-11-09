@@ -95,10 +95,17 @@ class CoverageChapter(OrmModel):
     vocabulary_mastered_percent: float
     kanji_mastered_percent: float
     vocabulary_total: int = 0
+    vocabulary_mastered: int = 0
+    vocabulary_practiced: int = 0
     vocabulary_unknown: int = 0
+    vocabulary_known: int = 0
     vocabulary_weak: int = 0
     kanji_example_total: int = 0
+    kanji_total: int = 0
+    kanji_mastered: int = 0
+    kanji_practiced: int = 0
     kanji_example_unknown: int = 0
+    kanji_example_known: int = 0
     kanji_weak: int = 0
 
 
