@@ -29,6 +29,10 @@ def library_items(
     )
 
 
+def comparison_items(kind: str, book_ids: list[int], db: Session):
+    return queries.comparison_items(kind, book_ids, db)
+
+
 def update_star(kind: str, source_id: int, payload: StarUpdate, db: Session = None):
     if kind not in ("vocabulary", "kanji"):
         raise InvalidOperation("Kind must be vocabulary or kanji")

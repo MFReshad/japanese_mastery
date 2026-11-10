@@ -1,6 +1,7 @@
 from __future__ import annotations
 from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from app.models.book import Chapter
 from app.models.item import Kanji, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
 
@@ -135,3 +136,67 @@ def library_items(
                 )
         total = db.scalar(count_stmt.where(*conditions)) or 0
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def comparison_items(kind: str, book_ids: list[int], db: Session):
+    model = VocabularySource if kind == "vocabulary" else KanjiSource
+    stmt = (
+        select(model, Chapter.chapter_number, Chapter.title, Chapter.part)
+        .outerjoin(Chapter, Chapter.id == model.chapter_id)
+        .where(model.book_id.in_(book_ids))
+        .order_by(model.book_id, Chapter.sort_order, model.item_order, model.id)
+    )
+    if kind == "vocabulary":
+        stmt = stmt.options(selectinload(VocabularySource.vocabulary))
+    else:
+        stmt = stmt.options(
+            selectinload(KanjiSource.kanji), selectinload(KanjiSource.examples)
+        )
+
+    rows = db.execute(stmt).all()
+    canonical_ids = {
+        source.vocabulary_id if kind == "vocabulary" else source.kanji_id
+        for source, *_ in rows
+    }
+    starred_ids = set(db.scalars(
+        select(ItemProgress.item_id).where(
+            ItemProgress.item_type == kind,
+            ItemProgress.item_id.in_(canonical_ids),
+            ItemProgress.is_starred.is_(True),
+        )
+    )) if canonical_ids else set()
+
+    items = []
+    for source, chapter_number, chapter_title, part in rows:
+        common = {
+            "source_id": source.source_id or str(source.id),
+            "source_entry_id": source.id,
+            "book_id": source.book_id,
+            "chapter_id": source.chapter_id,
+            "chapter_number": chapter_number,
+            "chapter_title": chapter_title,
+            "part": part,
+            "item_order": source.item_order,
+            "meaning": source.meaning_as_printed,
+        }
+        if kind == "vocabulary":
+            items.append({
+                **common,
+                "match_key": str(source.vocabulary_id),
+                "display": source.expression_as_printed,
+                "reading": source.reading_as_printed,
+                "is_important": source.vocabulary_id in starred_ids,
+            })
+        else:
+            items.append({
+                **common,
+                "match_key": str(source.kanji_id),
+                "display": source.kanji.character,
+                "onyomi": source.onyomi_as_printed or [],
+                "kunyomi": source.kunyomi_as_printed or [],
+                "examples": [
+                    {"id": example.id, "word": example.word, "reading": example.reading, "meaning": example.meaning, "is_important": example.is_important}
+                    for example in sorted(source.examples, key=lambda row: (row.sort_order, row.id))
+                ],
+            })
+    return {"kind": kind, "book_ids": book_ids, "items": items}

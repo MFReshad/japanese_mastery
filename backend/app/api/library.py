@@ -8,6 +8,15 @@ from app.services.library_operations import StarUpdate
 router = APIRouter()
 
 
+@router.get("/library/compare")
+def compare_library_items(
+    kind: str = Query("vocabulary", pattern="^(vocabulary|kanji)$"),
+    book_ids: list[int] = Query(..., min_length=1, max_length=12),
+    db: Session = Depends(get_db),
+):
+    return operations.comparison_items(kind, list(dict.fromkeys(book_ids)), db)
+
+
 @router.get("/library/items")
 def library_items(
     kind: str = Query("vocabulary", pattern="^(vocabulary|kanji)$"),

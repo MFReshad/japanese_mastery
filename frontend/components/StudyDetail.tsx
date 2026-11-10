@@ -11,6 +11,7 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
   const [saveError, setSaveError] = useState("");
   const [savingExamples, setSavingExamples] = useState<Set<number>>(() => new Set());
   const [savingVocabulary, setSavingVocabulary] = useState(false);
+  const [savingStar, setSavingStar] = useState(false);
   useEffect(() => {
     let active = true;
     setDetail(null); setError("");
@@ -73,6 +74,20 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
     }
   }
 
+  async function toggleVocabularyStar() {
+    if (!detail || kind !== "vocabulary" || savingStar) return;
+    const previous = detail.is_starred ?? false;
+    const next = !previous;
+    setSavingStar(true); setSaveError("");
+    setDetail(current => current ? {...current, is_starred: next} : current);
+    try {
+      await api(`/library/items/vocabulary/${detail.source_entry_id}/star`, {method: "PATCH", body: JSON.stringify({is_starred: next})});
+    } catch {
+      setDetail(current => current ? {...current, is_starred: previous} : current);
+      setSaveError("Could not save the important mark. Please try again.");
+    } finally { setSavingStar(false); }
+  }
+
   return <article className="mx-auto max-w-3xl pb-40 sm:pb-12">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm">
       <Link href={backHref} className="inline-flex min-h-10 items-center gap-2 font-medium text-moss"><ArrowLeft size={17} /> Back to chapter</Link>
@@ -84,7 +99,7 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0 flex-1">
           {kind === "kanji" ? <h1 lang="ja" className="text-8xl font-semibold leading-none text-ink sm:text-9xl">{detail.character}</h1>
-            : <><div className="flex items-start gap-4"><h1 lang="ja" className="min-w-0 flex-1 break-words text-5xl font-semibold leading-tight text-ink sm:text-6xl">{detail.expression_as_printed}</h1><KnowledgeButtons value={detail.knowledge_status ?? null} disabled={savingVocabulary} setValue={(value) => void setKnowledge("vocabulary", detail.source_entry_id, detail.knowledge_status ?? null, value)} /></div><p lang="ja" className="mt-3 break-words text-2xl text-stone-600">{detail.reading_as_printed || "Reading not listed"}</p></>}
+            : <><div className="flex items-start gap-4"><h1 lang="ja" className="min-w-0 flex-1 break-words text-5xl font-semibold leading-tight text-ink sm:text-6xl">{detail.expression_as_printed}</h1><div className="flex gap-2"><button type="button" disabled={savingStar} onClick={() => void toggleVocabularyStar()} aria-label={detail.is_starred ? "Remove important mark" : "Mark vocabulary as important"} title={detail.is_starred ? "Remove important mark" : "Mark as important"} className={`flex min-h-10 min-w-10 items-center justify-center rounded border disabled:opacity-50 ${detail.is_starred ? "border-amber-500 bg-amber-100 text-amber-700" : "border-stone-300 text-moss"}`}><Star size={19} fill={detail.is_starred ? "currentColor" : "none"} /></button><KnowledgeButtons value={detail.knowledge_status ?? null} disabled={savingVocabulary} setValue={(value) => void setKnowledge("vocabulary", detail.source_entry_id, detail.knowledge_status ?? null, value)} /></div></div><p lang="ja" className="mt-3 break-words text-2xl text-stone-600">{detail.reading_as_printed || "Reading not listed"}</p>{saveError && <p role="alert" className="mt-3 text-sm text-persimmon">{saveError}</p>}</>}
         </div>
         <div className="text-right text-sm text-stone-500">
           <p>{detail.chapter_title}</p>

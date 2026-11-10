@@ -84,5 +84,8 @@ def test_study_vocabulary_uses_selected_occurrence(client, db_session):
     assert detail.status_code == 200
     assert detail.json()["meanings_as_printed"] == ["bridge in this book", "span"]
     assert detail.json()["item_order"] == 4
+    assert detail.json()["is_starred"] is False
+    assert client.patch(f"/library/items/vocabulary/{source.id}/star", json={"is_starred": True}).status_code == 200
+    assert client.get("/study/vocabulary/source_vocab_1").json()["is_starred"] is True
     assert detail.json()["next_chapter"]["first_source_id"] == "source_vocab_2"
     assert client.get("/study/vocabulary/source_vocab_2").json()["next_chapter"] is None

@@ -38,6 +38,7 @@ export type StudyDetail = {
   next_chapter: StudyNextChapter | null;
   expression_as_printed?: string; reading_as_printed?: string; character?: string;
   knowledge_status?: KnowledgeStatus;
+  is_starred?: boolean;
   entry_number_as_printed?: number | null; onyomi_as_printed?: string[]; kunyomi_as_printed?: string[];
   stroke_count_as_printed?: number | null; examples?: {id: number; word: string; reading: string; meaning: string; is_important: boolean; knowledge_status: KnowledgeStatus}[];
   uncertain?: boolean | null; source_book_page?: number | null;

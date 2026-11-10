@@ -4,6 +4,7 @@ from sqlalchemy import String, cast, func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from app.models.book import Book, Chapter
 from app.models.item import Kanji, KanjiExample, KanjiSource, VocabularySource
+from app.models.practice import ItemProgress
 
 
 def _model(kind: str):
@@ -219,11 +220,16 @@ def study_detail(kind: str, source_id: str, db: Session = None):
         "lesson_count": lesson_count,
     }
     if kind == "vocabulary":
+        is_starred = bool(db.scalar(select(ItemProgress.is_starred).where(
+            ItemProgress.item_type == "vocabulary",
+            ItemProgress.item_id == source.vocabulary_id,
+        )))
         return {
             **common,
             "expression_as_printed": source.expression_as_printed,
             "reading_as_printed": source.reading_as_printed,
             "knowledge_status": source.knowledge_status,
+            "is_starred": is_starred,
         }
     return {
         **common,
