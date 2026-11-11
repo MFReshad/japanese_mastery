@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { BookOpen, BookMarked, Languages, Database, Upload, BarChart3, GitCompareArrows, LucideIcon } from "lucide-react";
+import { BookOpen, BookMarked, Languages, Database, Upload, BarChart3, GitCompareArrows, ListChecks, LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Book, Chapter, getBooks, getChapters } from "@/lib/api";
 type Card = { href: string; title: string; description: string; icon: LucideIcon; count: (books: Book[], chapters: Chapter[]) => string };
@@ -10,6 +10,7 @@ const cards: Card[] = [
   { href: "/manage/vocabulary", title: "Vocabulary", description: "Edit chapter vocabulary, fill gaps, and control study order.", icon: Languages, count: (books) => `${books.reduce((sum, book) => sum + book.vocabulary_count, 0).toLocaleString()} entries` },
   { href: "/manage/kanji", title: "Kanji", description: "Review readings, meanings, examples, and uncertain entries.", icon: Database, count: (books) => `${books.reduce((sum, book) => sum + book.kanji_count, 0).toLocaleString()} entries` },
   { href: "/manage/compare", title: "Compare books", description: "Match vocabulary or kanji across books and see where each item appears.", icon: GitCompareArrows, count: (books) => `${books.length} books available` },
+  { href: "/manage/review", title: "Review marks", description: "Find conflicting knowledge and practice states, then update many items together.", icon: ListChecks, count: () => "Filter and bulk update" },
   { href: "/manage/imports", title: "Imports", description: "Preview source files, resolve conflicts, and commit imports.", icon: Upload, count: () => "Preview before committing" },
   { href: "/progress", title: "Practice / Progress", description: "Review mastery and coverage across your study data.", icon: BarChart3, count: () => "View learning progress" },
 ];

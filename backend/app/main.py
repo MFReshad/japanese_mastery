@@ -8,6 +8,7 @@ from app.api.library import router as library_router
 from app.api.practice import router as practice_router
 from app.api.progress import router as progress_router
 from app.api.study import router as study_router
+from app.api.review import router as review_router
 from app.api.vocabulary_order import router as vocabulary_order_router
 from app.core.logging import configure_logging
 from fastapi import Request
@@ -32,6 +33,7 @@ app.include_router(practice_router)
 app.include_router(progress_router)
 app.include_router(imports_router)
 app.include_router(study_router)
+app.include_router(review_router)
 app.include_router(vocabulary_order_router)
 
 
