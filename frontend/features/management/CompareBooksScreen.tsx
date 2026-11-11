@@ -28,21 +28,24 @@ export default function CompareBooksScreen() {
   const [items, setItems] = useState<CompareItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [draggedBookId, setDraggedBookId] = useState<number | null>(null);
+  const [dragOverBookId, setDragOverBookId] = useState<number | null>(null);
+  const selectedBookQuery = [...selected].sort((a, b) => a - b).join(",");
 
   useEffect(() => { getActiveBooks().then(setBooks).catch(reason => setError(String(reason))); }, []);
   useEffect(() => {
-    if (!selected.length) { setItems([]); return; }
+    if (!selectedBookQuery) { setItems([]); return; }
     let active = true;
     const query = new URLSearchParams({ kind });
-    selected.forEach(id => query.append("book_ids", String(id)));
+    selectedBookQuery.split(",").forEach(id => query.append("book_ids", id));
     setLoading(true); setError("");
     api<CompareResult>(`/library/compare?${query}`).then(result => { if (active) setItems(result.items); })
       .catch(reason => { if (active) setError(String(reason)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [kind, selected]);
+  }, [kind, selectedBookQuery]);
 
-  const selectedBooks = books.filter(book => selected.includes(book.id));
+  const selectedBooks = selected.map(id => books.find(book => book.id === id)).filter((book): book is Book => Boolean(book));
   const rows = useMemo(() => {
     const grouped = new Map<string, MatchRow>();
     for (const item of items) {
@@ -73,6 +76,18 @@ export default function CompareBooksScreen() {
     if (sortBookId === id) setDirection(current => current === "asc" ? "desc" : "asc");
     else { setSortBookId(id); setDirection("asc"); }
   }
+  function moveBook(targetId: number) {
+    if (draggedBookId === null || draggedBookId === targetId) return;
+    setSelected(current => {
+      const from = current.indexOf(draggedBookId);
+      const to = current.indexOf(targetId);
+      if (from < 0 || to < 0) return current;
+      const reordered = [...current];
+      reordered.splice(from, 1);
+      reordered.splice(to, 0, draggedBookId);
+      return reordered;
+    });
+  }
   async function toggleVocabularyStar(item: CompareItem) {
     const next = !item.is_important;
     setItems(current => current.map(entry => entry.match_key === item.match_key ? {...entry, is_important: next} : entry));
@@ -101,7 +116,7 @@ export default function CompareBooksScreen() {
       <label className="block max-w-xs text-sm font-medium">Sort rows<select className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3" value={sortMode} onChange={event => { setSortMode(event.target.value as "lesson" | "alphabetical"); setDirection("asc"); }}><option value="lesson">Lesson order</option><option value="alphabetical">Alphabetical</option></select></label>
     </section>
     {error && <p role="alert" className="mb-4 text-persimmon">{error}</p>}
-    {!selected.length ? <div className="rounded-2xl border border-dashed border-stone-300 p-12 text-center text-stone-500">Choose one or more books to create the comparison.</div> : loading ? <div className="h-72 animate-pulse rounded-2xl bg-stone-100" /> : <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white"><table className="min-w-full border-collapse"><thead><tr>{selectedBooks.map(book => <th key={book.id} className="sticky top-0 min-w-72 border-b border-r border-stone-200 bg-stone-50 p-4 text-left last:border-r-0"><button className="flex w-full items-center justify-between gap-3" onClick={() => sortByBook(book.id)}><span>{book.title}</span>{sortMode === "lesson" && (sortBookId ?? selected[0]) === book.id ? direction === "asc" ? <ArrowUp size={17} /> : <ArrowDown size={17} /> : null}</button><span className="mt-1 block text-xs font-normal text-stone-500">Click to sort by this book’s lessons</span></th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.key} className="align-top">{selectedBooks.map(book => <td key={book.id} className="border-b border-r border-stone-100 p-4 last:border-r-0">{row.cells.get(book.id)?.map(item => <ItemCell key={item.source_entry_id} item={item} kind={kind} toggleVocabularyStar={toggleVocabularyStar} toggleExampleStar={toggleExampleStar} />) ?? <span className="text-stone-300">—</span>}</td>)}</tr>)}</tbody></table>{rows.length === 0 && <p className="p-12 text-center text-stone-500">The selected books contain no {kind} entries.</p>}</div>}
+    {!selected.length ? <div className="rounded-2xl border border-dashed border-stone-300 p-12 text-center text-stone-500">Choose one or more books to create the comparison.</div> : loading ? <div className="h-72 animate-pulse rounded-2xl bg-stone-100" /> : <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white"><div className="w-full" style={{minWidth: `${selectedBooks.length * 18}rem`}}><div className="grid" style={{gridTemplateColumns: `repeat(${selectedBooks.length}, minmax(18rem, 1fr))`}}>{selectedBooks.map(book => <div key={book.id} draggable onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(book.id)); setDraggedBookId(book.id); }} onDragEnter={() => setDragOverBookId(book.id)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={event => { event.preventDefault(); moveBook(book.id); setDraggedBookId(null); setDragOverBookId(null); }} onDragEnd={() => { setDraggedBookId(null); setDragOverBookId(null); }} className={`cursor-grab select-none border-b border-r border-stone-200 bg-stone-50 p-4 last:border-r-0 active:cursor-grabbing ${draggedBookId === book.id ? "opacity-50" : ""} ${dragOverBookId === book.id && draggedBookId !== book.id ? "bg-moss/10 ring-2 ring-inset ring-moss" : ""}`}><button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => sortByBook(book.id)}><span className="font-semibold">{book.title}</span>{sortMode === "lesson" && (sortBookId ?? selected[0]) === book.id ? direction === "asc" ? <ArrowUp size={17} /> : <ArrowDown size={17} /> : null}</button><span className="mt-1 block text-xs text-stone-500">Drag to reorder · Click to sort lessons</span></div>)}</div>{rows.map(row => <div key={row.key} className="grid" style={{gridTemplateColumns: `repeat(${selectedBooks.length}, minmax(18rem, 1fr))`}}>{selectedBooks.map(book => <div key={book.id} className="min-h-24 border-b border-r border-stone-100 p-4 last:border-r-0">{row.cells.get(book.id)?.map(item => <ItemCell key={item.source_entry_id} item={item} kind={kind} toggleVocabularyStar={toggleVocabularyStar} toggleExampleStar={toggleExampleStar} />) ?? <span className="text-stone-300">—</span>}</div>)}</div>)}</div>{rows.length === 0 && <p className="p-12 text-center text-stone-500">The selected books contain no {kind} entries.</p>}</div>}
   </div>;
 }
 
@@ -111,13 +126,12 @@ function ItemCell({ item, kind, toggleVocabularyStar, toggleExampleStar }: { ite
     <Link href={`/study/${kind}/${encodeURIComponent(item.source_id)}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${item.display} in Study`} className="absolute inset-0 z-0 rounded-lg" />
     {kind === "vocabulary" && <button type="button" onClick={() => toggleVocabularyStar(item)} aria-label={item.is_important ? `Remove ${item.display} from important vocabulary` : `Mark ${item.display} as important vocabulary`} title={item.is_important ? "Remove important mark" : "Mark as important"} className={`absolute right-2 top-2 z-20 flex min-h-9 min-w-9 items-center justify-center rounded border bg-white ${item.is_important ? "border-amber-400 text-amber-600" : "border-stone-300 text-stone-500"}`}><Star size={17} fill={item.is_important ? "currentColor" : "none"} /></button>}
     <div className={`pointer-events-none relative z-10 ${kind === "vocabulary" ? "pr-11" : ""}`}>
-    <div className={importantVocabulary ? "inline-block rounded-md bg-amber-100 px-2 py-1 text-amber-950" : ""}>
-      <div className={kind === "kanji" ? "text-3xl font-semibold" : "text-lg font-semibold"}>{item.display}</div>
-      {item.reading && <div className={importantVocabulary ? "text-sm text-amber-800" : "text-sm text-moss"}>{item.reading}</div>}
+    <div className={`w-full ${importantVocabulary ? "rounded-md bg-amber-100 px-2 py-2 text-amber-950" : ""}`}>
+      {kind === "vocabulary" ? <><div className="text-lg font-semibold">{item.display}</div>{item.reading && <div className={importantVocabulary ? "text-sm text-amber-800" : "text-sm text-moss"}>{item.reading}</div>}</> : <div className="text-3xl font-semibold">{item.display}</div>}
       <div className={importantVocabulary ? "mt-1 text-sm text-amber-900" : "mt-1 text-sm text-stone-600"}>{item.meaning}</div>
     </div>
     <div className="mt-2 text-xs font-medium text-stone-500">{item.part != null ? `Part ${item.part} · ` : ""}{item.chapter_number != null ? `Lesson ${item.chapter_number}` : "No chapter"}{item.chapter_title ? ` · ${item.chapter_title}` : ""}</div>
-    {kind === "kanji" && Boolean(item.examples?.length) && <div className="mt-3 border-t border-stone-100 pt-2"><div className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Examples</div>{item.examples?.map((example, index) => <div key={`${example.word}-${index}`} className="relative py-1 pr-11 text-sm"><div className={example.is_important ? "inline-block rounded-md bg-amber-100 px-2 py-1 text-amber-950" : ""}><div><span className="font-medium">{example.word}</span> <span className={example.is_important ? "text-amber-800" : "text-moss"}>{example.reading}</span></div><div className={example.is_important ? "text-amber-900" : "text-stone-500"}>{example.meaning}</div></div><button type="button" onClick={() => toggleExampleStar(example.id, example.is_important ?? false)} aria-label={example.is_important ? `Remove ${example.word} from important examples` : `Mark ${example.word} as an important example`} title={example.is_important ? "Remove important mark" : "Mark as important"} className={`pointer-events-auto absolute right-0 top-1 z-20 flex min-h-8 min-w-8 items-center justify-center rounded border bg-white ${example.is_important ? "border-amber-400 text-amber-600" : "border-stone-300 text-stone-500"}`}><Star size={15} fill={example.is_important ? "currentColor" : "none"} /></button></div>)}</div>}
+    {kind === "kanji" && Boolean(item.examples?.length) && <div className="mt-3 border-t border-stone-100 pt-2"><div className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Examples</div>{item.examples?.map((example, index) => <div key={`${example.word}-${index}`} className="relative py-1 pr-11 text-sm"><div className={`w-full ${example.is_important ? "rounded-md bg-amber-100 px-2 py-2 text-amber-950" : ""}`}><div className="grid grid-cols-2 gap-4"><span className="font-medium">{example.word}</span><span className={example.is_important ? "text-amber-800" : "text-moss"}>{example.reading}</span></div><div className={example.is_important ? "mt-1 text-amber-900" : "mt-1 text-stone-500"}>{example.meaning}</div></div><button type="button" onClick={() => toggleExampleStar(example.id, example.is_important ?? false)} aria-label={example.is_important ? `Remove ${example.word} from important examples` : `Mark ${example.word} as an important example`} title={example.is_important ? "Remove important mark" : "Mark as important"} className={`pointer-events-auto absolute right-0 top-1 z-20 flex min-h-8 min-w-8 items-center justify-center rounded border bg-white ${example.is_important ? "border-amber-400 text-amber-600" : "border-stone-300 text-stone-500"}`}><Star size={15} fill={example.is_important ? "currentColor" : "none"} /></button></div>)}</div>}
     </div>
   </div>;
 }
