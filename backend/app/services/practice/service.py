@@ -29,28 +29,40 @@ def start_practice(
     db: Session, payload: PracticeStartRequest
 ) -> tuple[PracticeSession, list[PracticeQuestion]]:
     drafts: list[QuestionDraft] = []
-    if payload.practice_type in ("vocabulary", "mixed"):
+    if payload.practice_type in (
+        "vocabulary",
+        "vocab_word_to_meaning",
+        "vocab_meaning_to_word",
+        "mixed",
+    ):
         vocab = _eligible_sources(db, payload, "vocabulary")
+        direction = {
+            "vocab_word_to_meaning": "word_to_meaning",
+            "vocab_meaning_to_word": "meaning_to_word",
+        }.get(payload.practice_type)
         drafts.extend(
             draft
             for source in vocab
-            if (draft := question_from_vocab(source)) is not None
+            if (draft := question_from_vocab(source, direction=direction)) is not None
         )
     if payload.practice_type in ("kanji", "mixed", "important_kanji_words", "kanji_example_words"):
         kanji = _eligible_sources(db, payload, "kanji")
         if payload.practice_type in ("important_kanji_words", "kanji_example_words"):
             selected_conditions = set(payload.conditions)
             manual_knowledge = selected_conditions & {"known", "unknown"}
-            # With mixed conditions (for example ✕ OR Weak), the automatic
-            # source-level match must still include all of that source's words.
-            knowledge = manual_knowledge if not (selected_conditions - {"known", "unknown"}) else set()
+            # An individual example cannot be both manually known and unknown.
+            if len(manual_knowledge) > 1:
+                kanji = []
             drafts.extend(
                 draft
                 for source in kanji
                 for draft in example_word_questions(
                     source,
-                    important_only=payload.practice_type == "important_kanji_words",
-                    knowledge=knowledge or None,
+                    important_only=(
+                        payload.practice_type == "important_kanji_words"
+                        or "starred" in selected_conditions
+                    ),
+                    knowledge=manual_knowledge or None,
                 )
             )
         else:

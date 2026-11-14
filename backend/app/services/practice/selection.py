@@ -63,10 +63,18 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
             elif condition == "wrong":
                 clauses.append(or_(ItemProgress.status == "weak", ItemProgress.last_result == "wrong"))
             elif condition == "starred":
-                clauses.append(ItemProgress.is_starred.is_(True))
+                if item_type == "kanji" and payload.practice_type in (
+                    "important_kanji_words",
+                    "kanji_example_words",
+                ):
+                    clauses.append(
+                        KanjiSource.examples.any(KanjiExample.is_important.is_(True))
+                    )
+                else:
+                    clauses.append(ItemProgress.is_starred.is_(True))
             else:
                 clauses.append(and_(ItemProgress.attempts > 0, ItemProgress.status == condition))
-        stmt = stmt.where(or_(*clauses))
+        stmt = stmt.where(and_(*clauses))
     elif payload.mode != "random":
         if payload.mode == "never_practiced":
             stmt = stmt.where(

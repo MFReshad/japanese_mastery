@@ -60,3 +60,63 @@ def test_answer_tracking_and_range_filter(client, db_session):
         client.post("/practice/answer", json={"session_id": fresh["session_id"], "question_id": fresh_question["question_id"], "result": "correct"})
     progress = client.get("/progress").json()
     assert progress[0]["learning"] + progress[0]["mastered"] >= 1
+
+
+def test_explicit_vocabulary_practice_directions(client):
+    book = client.post(
+        "/books", json={"title": "Direction Demo", "short_name": "DIRECTION"}
+    ).json()
+    chapter = client.post(
+        "/chapters",
+        json={
+            "book_id": book["id"],
+            "chapter_number": 1,
+            "title": "One",
+            "sort_order": 1,
+        },
+    ).json()
+    source = client.post(
+        "/vocabulary-sources",
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "item_order": 1,
+            "expression": "食べる",
+            "reading": "たべる",
+            "meaning": "to eat",
+        },
+    ).json()
+
+    word_first = client.post(
+        "/practice/start",
+        json={
+            "practice_type": "vocab_word_to_meaning",
+            "source_entry_ids": [source["id"]],
+            "question_count": 1,
+        },
+    )
+    assert word_first.status_code == 200
+    word_question = word_first.json()["questions"][0]
+    assert word_question["question_type"] == "japanese_to_meaning"
+    assert word_question["prompt"] == "食べる\nたべる"
+
+    meaning_first = client.post(
+        "/practice/start",
+        json={
+            "practice_type": "vocab_meaning_to_word",
+            "source_entry_ids": [source["id"]],
+            "question_count": 1,
+        },
+    )
+    assert meaning_first.status_code == 200
+    meaning_question = meaning_first.json()["questions"][0]
+    assert meaning_question["question_type"] == "meaning_to_japanese"
+    assert meaning_question["prompt"] == "to eat"
+
+    reveal = client.post(
+        f"/practice/questions/{meaning_question['question_id']}/reveal",
+        json={"session_id": meaning_first.json()["session_id"]},
+    )
+    assert reveal.status_code == 200
+    assert reveal.json()["answer_primary"] == "食べる"
+    assert reveal.json()["answer_secondary"] == "たべる"

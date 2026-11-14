@@ -8,7 +8,15 @@ from app.schemas.common import OrmModel
 
 
 class PracticeStartRequest(OrmModel):
-    practice_type: Literal["vocabulary", "kanji", "mixed", "important_kanji_words", "kanji_example_words"] = "mixed"
+    practice_type: Literal[
+        "vocabulary",
+        "vocab_word_to_meaning",
+        "vocab_meaning_to_word",
+        "kanji",
+        "mixed",
+        "important_kanji_words",
+        "kanji_example_words",
+    ] = "mixed"
     mode: Literal[
         "random",
         "weak",

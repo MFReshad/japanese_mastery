@@ -123,12 +123,12 @@ function PracticeContent() {
   return (
     <div className="space-y-4">
       <section className="grid gap-2 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "kanji", "mixed", "kanji_example_words"]} disabled={sessionActive || busy} />
+        <Select value={practiceType} onChange={setPracticeType} options={["vocabulary", "vocab_word_to_meaning", "vocab_meaning_to_word", "kanji", "mixed", "kanji_example_words"]} disabled={sessionActive || busy} />
         <Select value={mode} onChange={setMode} options={["random", "wrong", "weak", "never_practiced", "mastery_review", "starred", "starred_priority"]} disabled={sessionActive || busy} />
         <select aria-label="Book" disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={bookId} onChange={(event) => { const nextBookId = event.target.value; setBookId(nextBookId); setChapterIds([]); (nextBookId ? getChaptersByBook(Number(nextBookId)) : getChapters()).then(loaded => setChapters(current => mergeChapters(current, loaded))).catch(reason => setError(String(reason))); }}><option value="">All books</option>{books.map(book => <option key={book.id} value={book.id}>{book.title}</option>)}</select>
         <select disabled={sessionActive || busy} className="min-h-11 rounded border border-stone-300 px-3" value={count} onChange={(e) => setCount(e.target.value)}>{["1", "10", "20", "30", "50", "All"].map((v) => <option key={v} value={v}>{v === "All" ? "All (up to 2,000)" : v}</option>)}</select>
         <ChapterPicker books={books} chapters={chapters.filter(chapter => !bookId || String(chapter.book_id) === bookId)} selected={chapterIds} setSelected={setChapterIds} disabled={sessionActive || busy} />
-        <fieldset disabled={sessionActive || busy} className="rounded border border-stone-200 p-3 sm:col-span-2 lg:col-span-5"><legend className="px-1 text-sm font-semibold">Custom conditions (match any selected)</legend><div className="mt-1 flex flex-wrap gap-2">{[["known", "✓ Know"], ["unknown", "✕ Don’t know"], ["weak", "Weak"], ["wrong", "Wrong"], ["never_practiced", "New"], ["learning", "Learning"], ["mastered", "Mastered"], ["starred", "Starred"]].map(([value, label]) => <label key={value} className={`cursor-pointer rounded border px-3 py-2 text-sm ${conditions.includes(value) ? "border-ink bg-ink text-white" : "border-stone-300"}`}><input type="checkbox" className="sr-only" checked={conditions.includes(value)} onChange={() => setConditions(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])} />{label}</label>)}</div>{conditions.length > 0 && <p className="mt-2 text-xs text-stone-500">An item is included when it matches any selected condition.</p>}</fieldset>
+        <fieldset disabled={sessionActive || busy} className="rounded border border-stone-200 p-3 sm:col-span-2 lg:col-span-5"><legend className="px-1 text-sm font-semibold">Custom conditions (match all selected)</legend><div className="mt-1 flex flex-wrap gap-2">{[["known", "✓ Know"], ["unknown", "✕ Don’t know"], ["weak", "Weak"], ["wrong", "Wrong"], ["never_practiced", "New"], ["learning", "Learning"], ["mastered", "Mastered"], ["starred", "Starred"]].map(([value, label]) => <label key={value} className={`cursor-pointer rounded border px-3 py-2 text-sm ${conditions.includes(value) ? "border-ink bg-ink text-white" : "border-stone-300"}`}><input type="checkbox" className="sr-only" checked={conditions.includes(value)} onChange={() => setConditions(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])} />{label}</label>)}</div>{conditions.length > 0 && <p className="mt-2 text-xs text-stone-500">An item is included only when it matches every selected condition.</p>}</fieldset>
         <button disabled={sessionActive || busy} className="min-h-12 rounded bg-ink px-4 font-semibold text-white disabled:opacity-50 sm:col-span-2 lg:col-span-5" onClick={start}>{sessionActive ? "Session in progress" : busy ? "Please wait..." : sessionId ? "New session" : "Start"}</button>
       </section>
       {error && <p role="alert" className="text-persimmon">{error}</p>}
@@ -187,7 +187,11 @@ function RevealDetails({ answer, hideSecondary = false }: { answer: RevealedAnsw
 }
 
 function Select({ value, onChange, options, disabled }: { value: string; onChange: (value: string) => void; options: string[]; disabled?: boolean }) {
-  return <select disabled={disabled} className="min-h-11 rounded border border-stone-300 px-3" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o.replaceAll("_", " ")}</option>)}</select>;
+  const labels: Record<string, string> = {
+    vocab_word_to_meaning: "Vocab word → meaning",
+    vocab_meaning_to_word: "Vocab meaning → word",
+  };
+  return <select disabled={disabled} className="min-h-11 rounded border border-stone-300 px-3" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{labels[o] ?? o.replaceAll("_", " ")}</option>)}</select>;
 }
 
 function ChapterPicker({books, chapters, selected, setSelected, disabled}: {books: Book[]; chapters: Chapter[]; selected: string[]; setSelected: (value: string[] | ((current: string[]) => string[])) => void; disabled: boolean}) {

@@ -98,3 +98,28 @@ def test_starred_practice_modes_use_starred_items(client, db_session):
     priority = client.post("/practice/start", json={"practice_type": "vocabulary", "mode": "starred_priority",
                                                     "book_ids": [book.id], "question_count": 1}).json()
     assert priority["questions"][0]["prompt"].split("\n")[0] in {items[1]["expression_as_printed"], items[1]["meaning_as_printed"]}
+
+
+def test_custom_conditions_require_new_and_starred_on_same_vocabulary(client, db_session):
+    book, chapter = seed_chapter(db_session, 2)
+    items = client.get(
+        f"/library/items?kind=vocabulary&book_id={book.id}&chapter_id={chapter.id}"
+    ).json()["items"]
+    client.patch(
+        f"/library/items/vocabulary/{items[0]['id']}/star",
+        json={"is_starred": True},
+    )
+
+    started = client.post(
+        "/practice/start",
+        json={
+            "practice_type": "vocab_word_to_meaning",
+            "book_ids": [book.id],
+            "conditions": ["never_practiced", "starred"],
+            "question_count": 10,
+        },
+    )
+    assert started.status_code == 200, started.text
+    assert [question["prompt"].split("\n")[0] for question in started.json()["questions"]] == [
+        items[0]["expression_as_printed"]
+    ]

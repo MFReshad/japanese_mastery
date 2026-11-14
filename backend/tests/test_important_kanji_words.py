@@ -96,3 +96,39 @@ def test_kanji_example_knowledge_filter(client):
     started = client.post("/practice/start", json={"practice_type": "kanji_example_words", "chapter_ids": [chapter["id"]], "conditions": ["unknown"], "question_count": 10})
     assert started.status_code == 200, started.text
     assert [question["prompt"] for question in started.json()["questions"]] == ["住所"]
+
+
+def test_kanji_example_conditions_require_new_and_starred_on_same_example(client):
+    book, chapter = _book_and_chapter(client)
+    source = client.post(
+        "/kanji-sources",
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "item_order": 1,
+            "character": "雪",
+            "meaning": "snow",
+            "examples": [
+                {"word": "大雪", "reading": "おおゆき", "meaning": "heavy snow"},
+                {"word": "雪国", "reading": "ゆきぐに", "meaning": "snow country"},
+            ],
+        },
+    ).json()
+    detail = client.get(f"/study/kanji/{source['id']}").json()
+    starred = next(example for example in detail["examples"] if example["word"] == "雪国")
+    client.patch(
+        f"/kanji-examples/{starred['id']}/important",
+        json={"is_important": True},
+    )
+
+    started = client.post(
+        "/practice/start",
+        json={
+            "practice_type": "kanji_example_words",
+            "book_ids": [book["id"]],
+            "conditions": ["never_practiced", "starred"],
+            "question_count": 10,
+        },
+    )
+    assert started.status_code == 200, started.text
+    assert [question["prompt"] for question in started.json()["questions"]] == ["雪国"]

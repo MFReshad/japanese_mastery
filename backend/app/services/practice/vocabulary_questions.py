@@ -1,11 +1,17 @@
 from __future__ import annotations
 import random
 import re
+from typing import Literal
 from app.models.item import VocabularySource
 from .types import QuestionDraft
 
 
-def question_from_vocab(source: VocabularySource) -> QuestionDraft:
+VocabularyDirection = Literal["word_to_meaning", "meaning_to_word"]
+
+
+def question_from_vocab(
+    source: VocabularySource, direction: VocabularyDirection | None = None
+) -> QuestionDraft | None:
     expression = source.expression_as_printed.strip()
     reading = source.reading_as_printed.strip()
     meaning = source.meaning_as_printed.strip()
@@ -44,5 +50,15 @@ def question_from_vocab(source: VocabularySource) -> QuestionDraft:
                 meaning,
                 reading or None,
             )
+        )
+    if direction is not None:
+        question_type = (
+            "japanese_to_meaning"
+            if direction == "word_to_meaning"
+            else "meaning_to_japanese"
+        )
+        return next(
+            (candidate for candidate in candidates if candidate.question_type == question_type),
+            None,
         )
     return random.choice(candidates) if candidates else None
