@@ -122,7 +122,7 @@ export default function CompareBooksScreen() {
 
 function ItemCell({ item, kind, toggleVocabularyStar, toggleExampleStar }: { item: CompareItem; kind: Kind; toggleVocabularyStar: (item: CompareItem) => void; toggleExampleStar: (id: number, current: boolean) => void }) {
   const importantVocabulary = kind === "vocabulary" && item.is_important;
-  return <div className="group relative mb-3 rounded-lg p-2 -m-2 transition hover:bg-moss/5 hover:ring-1 hover:ring-moss/30 focus-within:ring-2 focus-within:ring-moss">
+  return <div className="group relative isolate mb-3 rounded-lg p-2 -m-2 transition hover:bg-moss/5 hover:ring-1 hover:ring-moss/30 focus-within:ring-2 focus-within:ring-moss">
     <Link href={`/study/${kind}/${encodeURIComponent(item.source_id)}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${item.display} in Study`} className="absolute inset-0 z-0 rounded-lg" />
     {kind === "vocabulary" && <button type="button" onClick={() => toggleVocabularyStar(item)} aria-label={item.is_important ? `Remove ${item.display} from important vocabulary` : `Mark ${item.display} as important vocabulary`} title={item.is_important ? "Remove important mark" : "Mark as important"} className={`absolute right-2 top-2 z-20 flex min-h-9 min-w-9 items-center justify-center rounded border bg-white ${item.is_important ? "border-amber-400 text-amber-600" : "border-stone-300 text-stone-500"}`}><Star size={17} fill={item.is_important ? "currentColor" : "none"} /></button>}
     <div className={`pointer-events-none relative z-10 ${kind === "vocabulary" ? "pr-11" : ""}`}>
