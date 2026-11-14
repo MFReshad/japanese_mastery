@@ -2,7 +2,7 @@ from __future__ import annotations
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 from app.models.book import Chapter
-from app.models.item import Kanji, KanjiSource, VocabularySource
+from app.models.item import Kanji, KanjiExample, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
 
 
@@ -34,10 +34,23 @@ def library_items(
                 )
             )
         else:
+            matching_example = (
+                select(KanjiExample.id)
+                .where(
+                    KanjiExample.kanji_source_id == model.id,
+                    or_(
+                        KanjiExample.word.ilike(pattern),
+                        KanjiExample.reading.ilike(pattern),
+                        KanjiExample.meaning.ilike(pattern),
+                    ),
+                )
+                .exists()
+            )
             conditions.append(
                 or_(
                     Kanji.character.ilike(pattern),
                     model.meaning_as_printed.ilike(pattern),
+                    matching_example,
                 )
             )
     progress_id = model.vocabulary_id if kind == "vocabulary" else model.kanji_id
@@ -115,6 +128,31 @@ def library_items(
                 character=detail[0], onyomi=detail[1] or [], kunyomi=detail[2] or []
             )
         items.append(item)
+    if kind == "kanji" and term and items:
+        source_ids = [item["id"] for item in items]
+        example_rows = db.scalars(
+            select(KanjiExample)
+            .where(
+                KanjiExample.kanji_source_id.in_(source_ids),
+                or_(
+                    KanjiExample.word.ilike(pattern),
+                    KanjiExample.reading.ilike(pattern),
+                    KanjiExample.meaning.ilike(pattern),
+                ),
+            )
+            .order_by(KanjiExample.kanji_source_id, KanjiExample.sort_order, KanjiExample.id)
+        )
+        examples_by_source = {source_id: [] for source_id in source_ids}
+        for example in example_rows:
+            examples_by_source[example.kanji_source_id].append({
+                "id": example.id,
+                "word": example.word,
+                "reading": example.reading,
+                "meaning": example.meaning,
+                "is_important": example.is_important,
+            })
+        for item in items:
+            item["matching_examples"] = examples_by_source[item["id"]]
     if not items:
         count_stmt = select(func.count()).select_from(model)
         if kind == "kanji" and term:

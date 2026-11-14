@@ -1,5 +1,5 @@
 from app.models.book import Book, Chapter
-from app.models.item import Vocabulary, VocabularySource
+from app.models.item import Kanji, KanjiExample, KanjiSource, Vocabulary, VocabularySource
 from app.models.practice import ItemProgress
 
 
@@ -39,3 +39,39 @@ def test_compare_returns_shared_and_unmatched_items(client, db_session):
     assert all(item["is_important"] is True for item in shared_items)
     assert {item["book_id"] for item in unmatched_items} == {first.id}
     assert unmatched_items[0]["is_important"] is False
+
+
+def test_kanji_library_searches_example_word_reading_and_meaning(client, db_session):
+    book = Book(title="Kanji Book", short_name="KANJI")
+    db_session.add(book)
+    db_session.flush()
+    chapter = Chapter(book_id=book.id, chapter_number=1, title="First", sort_order=1)
+    kanji = Kanji(character="住")
+    db_session.add_all([chapter, kanji])
+    db_session.flush()
+    source = KanjiSource(
+        kanji_id=kanji.id,
+        book_id=book.id,
+        chapter_id=chapter.id,
+        item_order=1,
+        meaning_as_printed="reside",
+        meanings_as_printed=["reside"],
+        onyomi_as_printed=["ジュウ"],
+        kunyomi_as_printed=["す.む"],
+    )
+    db_session.add(source)
+    db_session.flush()
+    db_session.add(KanjiExample(
+        kanji_source_id=source.id,
+        word="住民",
+        reading="じゅうみん",
+        meaning="inhabitants",
+        sort_order=1,
+    ))
+    db_session.commit()
+
+    for term in ("住民", "じゅうみん", "inhabitants"):
+        result = client.get(f"/library/items?kind=kanji&book_id={book.id}&search={term}").json()
+        assert result["total"] == 1
+        assert result["items"][0]["character"] == "住"
+        assert result["items"][0]["matching_examples"][0]["word"] == "住民"
