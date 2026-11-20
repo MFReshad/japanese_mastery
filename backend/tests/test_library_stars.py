@@ -123,3 +123,52 @@ def test_custom_conditions_require_new_and_starred_on_same_vocabulary(client, db
     assert [question["prompt"].split("\n")[0] for question in started.json()["questions"]] == [
         items[0]["expression_as_printed"]
     ]
+
+
+def test_progress_conditions_match_any_but_other_categories_match_all(client, db_session):
+    book, chapter = seed_chapter(db_session, 3)
+    items = client.get(
+        f"/library/items?kind=vocabulary&book_id={book.id}&chapter_id={chapter.id}"
+    ).json()["items"]
+    sources = [db_session.get(VocabularySource, item["id"]) for item in items]
+    db_session.add_all(
+        [
+            ItemProgress(
+                item_type="vocabulary",
+                item_id=sources[0].vocabulary_id,
+                status="weak",
+                attempts=1,
+                wrong_count=1,
+                last_result="wrong",
+                is_starred=True,
+            ),
+            ItemProgress(
+                item_type="vocabulary",
+                item_id=sources[1].vocabulary_id,
+                status="learning",
+                attempts=2,
+                correct_count=2,
+                last_result="correct",
+            ),
+        ]
+    )
+    db_session.commit()
+    client.patch(
+        f"/library/items/vocabulary/{items[2]['id']}/star",
+        json={"is_starred": True},
+    )
+
+    response = client.post(
+        "/practice/start",
+        json={
+            "practice_type": "vocab_word_to_meaning",
+            "book_ids": [book.id],
+            "conditions": ["weak", "never_practiced", "starred"],
+            "question_count": 10,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert {question["prompt"].split("\n")[0] for question in response.json()["questions"]} == {
+        items[0]["expression_as_printed"],
+        items[2]["expression_as_printed"],
+    }

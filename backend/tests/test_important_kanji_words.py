@@ -98,6 +98,50 @@ def test_kanji_example_knowledge_filter(client):
     assert [question["prompt"] for question in started.json()["questions"]] == ["住所"]
 
 
+def test_kanji_example_known_and_unknown_match_either_mark(client):
+    book, chapter = _book_and_chapter(client)
+    source = client.post(
+        "/kanji-sources",
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "item_order": 1,
+            "character": "住",
+            "meaning": "live",
+            "examples": [
+                {"word": "住む", "reading": "すむ", "meaning": "to live"},
+                {"word": "住所", "reading": "じゅうしょ", "meaning": "address"},
+                {"word": "住民", "reading": "じゅうみん", "meaning": "resident"},
+            ],
+        },
+    ).json()
+    detail = client.get(f"/study/kanji/{source['id']}").json()
+    examples = {example["word"]: example for example in detail["examples"]}
+    client.patch(
+        f"/kanji-examples/{examples['住む']['id']}/knowledge",
+        json={"knowledge_status": "known"},
+    )
+    client.patch(
+        f"/kanji-examples/{examples['住所']['id']}/knowledge",
+        json={"knowledge_status": "unknown"},
+    )
+
+    response = client.post(
+        "/practice/start",
+        json={
+            "practice_type": "kanji_example_words",
+            "chapter_ids": [chapter["id"]],
+            "conditions": ["known", "unknown"],
+            "question_count": 10,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert {question["prompt"] for question in response.json()["questions"]} == {
+        "住む",
+        "住所",
+    }
+
+
 def test_kanji_example_conditions_require_new_and_starred_on_same_example(client):
     book, chapter = _book_and_chapter(client)
     source = client.post(

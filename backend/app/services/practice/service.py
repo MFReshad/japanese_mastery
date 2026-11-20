@@ -50,9 +50,6 @@ def start_practice(
         if payload.practice_type in ("important_kanji_words", "kanji_example_words"):
             selected_conditions = set(payload.conditions)
             manual_knowledge = selected_conditions & {"known", "unknown"}
-            # An individual example cannot be both manually known and unknown.
-            if len(manual_knowledge) > 1:
-                kanji = []
             drafts.extend(
                 draft
                 for source in kanji

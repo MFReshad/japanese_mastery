@@ -59,7 +59,17 @@ export function api<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
       cache: "no-store",
     });
-    if (!res.ok) throw new ApiError(res.status, await res.text());
+    if (!res.ok) {
+      const body = await res.text();
+      let message = body;
+      try {
+        const parsed = JSON.parse(body) as {detail?: unknown};
+        if (typeof parsed.detail === "string") message = parsed.detail;
+      } catch {
+        // Keep a non-JSON server response as-is.
+      }
+      throw new ApiError(res.status, message);
+    }
     if (!isGet && /^\/(books|chapters|vocabulary-sources|kanji-sources|import)(\/|$)/.test(path)) invalidateLookups();
     if (res.status === 204) return undefined as T;
     const result = await res.json() as T;

@@ -52,28 +52,58 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
         )
     if conditions:
         clauses = []
-        for condition in conditions:
-            if condition in ("known", "unknown"):
-                if item_type == "vocabulary":
-                    clauses.append(VocabularySource.knowledge_status == condition)
-                else:
-                    clauses.append(KanjiSource.examples.any(KanjiExample.knowledge_status == condition))
-            elif condition == "never_practiced":
-                clauses.append(or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0))
-            elif condition == "wrong":
-                clauses.append(or_(ItemProgress.status == "weak", ItemProgress.last_result == "wrong"))
-            elif condition == "starred":
-                if item_type == "kanji" and payload.practice_type in (
-                    "important_kanji_words",
-                    "kanji_example_words",
-                ):
-                    clauses.append(
-                        KanjiSource.examples.any(KanjiExample.is_important.is_(True))
-                    )
-                else:
-                    clauses.append(ItemProgress.is_starred.is_(True))
+        knowledge_conditions = conditions & {"known", "unknown"}
+        if knowledge_conditions:
+            if item_type == "vocabulary":
+                clauses.append(
+                    VocabularySource.knowledge_status.in_(knowledge_conditions)
+                )
             else:
-                clauses.append(and_(ItemProgress.attempts > 0, ItemProgress.status == condition))
+                clauses.append(
+                    KanjiSource.examples.any(
+                        KanjiExample.knowledge_status.in_(knowledge_conditions)
+                    )
+                )
+
+        progress_clauses = []
+        for condition in conditions & {
+            "weak",
+            "wrong",
+            "never_practiced",
+            "learning",
+            "mastered",
+        }:
+            if condition == "never_practiced":
+                progress_clauses.append(
+                    or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)
+                )
+            elif condition == "wrong":
+                progress_clauses.append(
+                    or_(
+                        ItemProgress.status == "weak",
+                        ItemProgress.last_result == "wrong",
+                    )
+                )
+            else:
+                progress_clauses.append(
+                    and_(
+                        ItemProgress.attempts > 0,
+                        ItemProgress.status == condition,
+                    )
+                )
+        if progress_clauses:
+            clauses.append(or_(*progress_clauses))
+
+        if "starred" in conditions:
+            if item_type == "kanji" and payload.practice_type in (
+                "important_kanji_words",
+                "kanji_example_words",
+            ):
+                clauses.append(
+                    KanjiSource.examples.any(KanjiExample.is_important.is_(True))
+                )
+            else:
+                clauses.append(ItemProgress.is_starred.is_(True))
         stmt = stmt.where(and_(*clauses))
     elif payload.mode != "random":
         if payload.mode == "never_practiced":
