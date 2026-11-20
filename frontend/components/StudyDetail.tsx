@@ -122,10 +122,10 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
         <ReadingList label="Kunyomi" readings={detail.kunyomi_as_printed ?? []} />
       </div>
       <section className="py-7">
-        <div className="mb-4 flex items-baseline justify-between gap-3"><h2 className="text-sm font-semibold uppercase text-stone-500">Examples</h2><span className="text-sm text-stone-500">{detail.examples?.length ?? 0}</span></div>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3"><div><h2 className="text-sm font-semibold uppercase text-stone-500">Examples</h2>{Boolean(detail.examples?.length) && <p className="mt-1 text-xs text-stone-500">Mastered {detail.examples?.filter(example => example.practice_status === "mastered").length}/{detail.examples?.length}</p>}</div><span className="text-sm text-stone-500">{detail.examples?.length ?? 0}</span></div>
         {saveError && <p role="alert" className="mb-3 text-sm text-persimmon">{saveError}</p>}
         {detail.examples?.length ? <div className="grid gap-3 sm:grid-cols-2">{detail.examples.map((example) => <div key={example.id} className="rounded border border-stone-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-3"><p lang="ja" className="break-words text-2xl font-semibold">{example.word}</p><button type="button" disabled={savingExamples.has(example.id)} onClick={() => void toggleImportant(example.id, example.is_important)} aria-label={example.is_important ? `Remove ${example.word} from important words` : `Mark ${example.word} as important`} title={example.is_important ? "Remove important mark" : "Mark as important"} className="flex min-h-10 min-w-10 items-center justify-center rounded border border-stone-200 text-moss disabled:opacity-50"><Star size={19} fill={example.is_important ? "currentColor" : "none"} /></button></div>
+          <div className="flex items-start justify-between gap-3"><div><p lang="ja" className="break-words text-2xl font-semibold">{example.word}</p><PracticeStatus status={example.practice_status} attempts={example.attempts} /></div><button type="button" disabled={savingExamples.has(example.id)} onClick={() => void toggleImportant(example.id, example.is_important)} aria-label={example.is_important ? `Remove ${example.word} from important words` : `Mark ${example.word} as important`} title={example.is_important ? "Remove important mark" : "Mark as important"} className="flex min-h-10 min-w-10 items-center justify-center rounded border border-stone-200 text-moss disabled:opacity-50"><Star size={19} fill={example.is_important ? "currentColor" : "none"} /></button></div>
           <p lang="ja" className="mt-1 break-words text-base text-moss">{example.reading}</p>
           <p className="mt-3 break-words text-stone-700">{example.meaning}</p>
           <div className="mt-3"><KnowledgeButtons value={example.knowledge_status} disabled={savingExamples.has(example.id)} setValue={(value) => void setKnowledge("example", example.id, example.knowledge_status, value)} /></div>
@@ -171,4 +171,9 @@ function KnowledgeButtons({value, disabled, setValue}: {value: KnowledgeStatus; 
     <button type="button" disabled={disabled} aria-label="I know this" title="I know this" onClick={() => setValue("known")} className={`flex min-h-10 min-w-10 items-center justify-center rounded border font-bold ${value === "known" ? "border-moss bg-moss text-white" : "border-stone-300 text-moss"}`}>✓</button>
     <button type="button" disabled={disabled} aria-label="I do not know this" title="I do not know this" onClick={() => setValue("unknown")} className={`flex min-h-10 min-w-10 items-center justify-center rounded border font-bold ${value === "unknown" ? "border-persimmon bg-persimmon text-white" : "border-stone-300 text-persimmon"}`}>✕</button>
   </div>;
+}
+
+function PracticeStatus({status, attempts}: {status: "new" | "learning" | "weak" | "mastered"; attempts: number}) {
+  const tone = status === "mastered" ? "bg-green-50 text-moss" : status === "weak" ? "bg-red-50 text-persimmon" : "bg-stone-100 text-stone-600";
+  return <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${tone}`}>{status} · {attempts} attempt{attempts === 1 ? "" : "s"}</span>;
 }

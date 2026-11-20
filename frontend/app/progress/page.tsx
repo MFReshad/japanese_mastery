@@ -5,7 +5,7 @@ import { ArrowRight, Check, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, Coverage } from "@/lib/api";
 
-type Material = "vocabulary" | "kanji";
+type Material = "vocabulary" | "kanji_examples" | "kanji";
 
 export default function ProgressPage() {
   const [coverage, setCoverage] = useState<Coverage[]>([]);
@@ -33,27 +33,28 @@ export default function ProgressPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm font-medium">Book<select value={bookId} onChange={event => { setBookId(event.target.value); setChapterId(""); }} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3"><option value="">All books</option>{books.map(book => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label>
         <label className="text-sm font-medium">Chapter<select value={chapterId} onChange={event => setChapterId(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3"><option value="">All chapters</option>{chapters.map(row => <option key={row.chapter_id} value={row.chapter_id}>Lesson {row.chapter_number}: {row.chapter_title}</option>)}</select></label>
-        <label className="text-sm font-medium">Material<select value={material} onChange={event => setMaterial(event.target.value as Material)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3"><option value="vocabulary">Vocabulary words</option><option value="kanji">Kanji example words</option></select></label>
+        <label className="text-sm font-medium">Material<select value={material} onChange={event => setMaterial(event.target.value as Material)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3"><option value="vocabulary">Vocabulary words</option><option value="kanji_examples">Kanji example words</option><option value="kanji">Kanji characters</option></select></label>
       </div>
     </section>
 
     <section className="rounded-2xl border border-stone-200 bg-white shadow-sm">
-      <div className="border-b border-stone-200 p-5 sm:p-6"><p className="text-sm font-medium text-moss">{scopeName}</p><h2 className="mt-1 text-2xl font-semibold">{material === "vocabulary" ? "Vocabulary words" : "Kanji example words"}</h2></div>
+      <div className="border-b border-stone-200 p-5 sm:p-6"><p className="text-sm font-medium text-moss">{scopeName}</p><h2 className="mt-1 text-2xl font-semibold">{materialName(material)}</h2></div>
       <div className="grid md:grid-cols-2 md:divide-x md:divide-stone-200">
         <div className="p-5 sm:p-6">
-          <div className="flex items-start justify-between"><div><h3 className="font-semibold">Your self-assessment</h3><p className="mt-1 text-sm text-stone-500">Based only on your ✓ and ✕ marks</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold">{stats.reviewedPercent}% marked</span></div>
+          <div className="flex items-start justify-between"><div><h3 className="font-semibold">{material === "kanji" ? "Example-word evidence" : "Your self-assessment"}</h3><p className="mt-1 text-sm text-stone-500">{material === "kanji" ? "Manual marks on this kanji’s example words" : "Based only on your ✓ and ✕ marks"}</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold">{stats.reviewedPercent}% marked</span></div>
           <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-stone-100"><div className="bg-moss" style={{width: `${percentage(stats.known, stats.manualTotal)}%`}} /><div className="bg-persimmon" style={{width: `${percentage(stats.unknown, stats.manualTotal)}%`}} /></div>
           <div className="mt-5 grid grid-cols-3 gap-2"><Metric label="Known" value={stats.known} icon={<Check size={17} />} tone="known" /><Metric label="Unknown" value={stats.unknown} icon={<X size={17} />} tone="unknown" /><Metric label="Not marked" value={stats.unmarked} /></div>
           <p className="mt-4 text-xs text-stone-500">Total: {stats.manualTotal} {material === "vocabulary" ? "vocabulary words" : "kanji example words"}</p>
         </div>
         <div className="border-t border-stone-200 p-5 md:border-t-0 sm:p-6">
-          <h3 className="font-semibold">Automatic practice result</h3><p className="mt-1 text-sm text-stone-500">Ratios use all {stats.practiceTotal} {material === "vocabulary" ? "vocabulary words" : "kanji characters"} in this selection</p>
+          <h3 className="font-semibold">Automatic practice result</h3><p className="mt-1 text-sm text-stone-500">Ratios use all {stats.practiceTotal} {materialName(material).toLocaleLowerCase()} in this selection</p>
           <div className="mt-5 grid grid-cols-2 gap-2"><Ratio label="Touched" value={stats.practiced} total={stats.practiceTotal} tone="neutral" /><Ratio label="Never touched" value={stats.neverTouched} total={stats.practiceTotal} tone="neutral" /><Ratio label="Weak" value={stats.weak} total={stats.practiceTotal} tone="weak" /><Ratio label="Mastered" value={stats.mastered} total={stats.practiceTotal} tone="mastered" /></div>
           <div className="mt-5 h-3 overflow-hidden rounded-full bg-stone-100"><div className="h-full bg-moss" style={{width: `${stats.masteryPercent}%`}} /></div>
           <p className="mt-2 text-xs text-stone-500">Mastery: {stats.mastered}/{stats.practiceTotal} · {stats.masteryPercent}%</p>
+          {material !== "vocabulary" && <p className="mt-3 rounded-lg bg-stone-50 p-3 text-xs text-stone-600"><strong>{stats.exampleSetsMastered}/{stats.kanjiTotal} kanji</strong> have every example word mastered. This is supporting evidence; it does not overwrite the kanji character’s own status.</p>}
         </div>
       </div>
-      <div className="grid gap-2 border-t border-stone-200 p-4 sm:grid-cols-3 sm:p-5"><Link href={`/practice?practice_type=${material === "vocabulary" ? "vocabulary" : "kanji_example_words"}&condition=unknown${bookId ? `&book_id=${bookId}` : ""}${chapterId ? `&chapter_id=${chapterId}` : ""}`} className="flex min-h-11 items-center justify-center rounded-lg border border-persimmon/40 text-sm font-semibold text-persimmon">Practice ✕ unknown</Link><Link href={`/practice?practice_type=${material === "vocabulary" ? "vocabulary" : "kanji_example_words"}&condition=weak${bookId ? `&book_id=${bookId}` : ""}${chapterId ? `&chapter_id=${chapterId}` : ""}`} className="flex min-h-11 items-center justify-center rounded-lg bg-ink text-sm font-semibold text-white">Practice weak</Link><Link href={`/study?${new URLSearchParams({...(bookId ? {book: bookId} : {}), ...(chapterId ? {chapter: chapterId} : {}), kind: material})}`} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-stone-300 text-sm font-semibold">Open study <ArrowRight size={15} /></Link></div>
+      <div className="grid gap-2 border-t border-stone-200 p-4 sm:grid-cols-3 sm:p-5"><Link href={`/practice?practice_type=${material === "vocabulary" ? "vocabulary" : material === "kanji_examples" ? "kanji_example_words" : "kanji"}${material === "kanji" ? "" : "&condition=unknown"}${bookId ? `&book_id=${bookId}` : ""}${chapterId ? `&chapter_id=${chapterId}` : ""}`} className="flex min-h-11 items-center justify-center rounded-lg border border-persimmon/40 text-sm font-semibold text-persimmon">{material === "kanji" ? "Practice all kanji" : "Practice ✕ unknown"}</Link><Link href={`/practice?practice_type=${material === "vocabulary" ? "vocabulary" : material === "kanji_examples" ? "kanji_example_words" : "kanji"}&condition=weak${bookId ? `&book_id=${bookId}` : ""}${chapterId ? `&chapter_id=${chapterId}` : ""}`} className="flex min-h-11 items-center justify-center rounded-lg bg-ink text-sm font-semibold text-white">Practice weak</Link><Link href={`/study?${new URLSearchParams({...(bookId ? {book: bookId} : {}), ...(chapterId ? {chapter: chapterId} : {}), kind: material === "vocabulary" ? "vocabulary" : "kanji"})}`} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-stone-300 text-sm font-semibold">Open study <ArrowRight size={15} /></Link></div>
     </section>
 
     <Breakdown rows={coverage} selectedBookId={bookId} material={material} />
@@ -69,17 +70,21 @@ function Breakdown({rows, selectedBookId, material}: {rows: Coverage[]; selected
   return <section><h2 className="mb-3 text-lg font-semibold">Progress by chapter</h2><div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">{chapterRows.map(row => <ChapterRow key={row.chapter_id} row={row} material={material} />)}</div></section>;
 }
 
-type Stats = {manualTotal: number; known: number; unknown: number; unmarked: number; reviewedPercent: number; practiceTotal: number; practiced: number; neverTouched: number; mastered: number; weak: number; masteryPercent: number};
+type Stats = {manualTotal: number; known: number; unknown: number; unmarked: number; reviewedPercent: number; practiceTotal: number; practiced: number; neverTouched: number; mastered: number; weak: number; masteryPercent: number; exampleSetsMastered: number; kanjiTotal: number};
 function aggregate(rows: Coverage[], material: Material): Stats {
   const manualTotal = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_total : row.kanji_example_total), 0);
   const known = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_known : row.kanji_example_known), 0);
   const unknown = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_unknown : row.kanji_example_unknown), 0);
-  const practiceTotal = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_total : row.kanji_total), 0);
-  const practiced = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_practiced : row.kanji_practiced), 0);
-  const mastered = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_mastered : row.kanji_mastered), 0);
-  const weak = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_weak : row.kanji_weak), 0);
-  return {manualTotal, known, unknown, unmarked: Math.max(manualTotal - known - unknown, 0), reviewedPercent: percentage(known + unknown, manualTotal), practiceTotal, practiced, neverTouched: Math.max(practiceTotal - practiced, 0), mastered, weak, masteryPercent: percentage(mastered, practiceTotal)};
+  const practiceTotal = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_total : material === "kanji_examples" ? row.kanji_example_total : row.kanji_total), 0);
+  const practiced = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_practiced : material === "kanji_examples" ? row.kanji_example_practiced : row.kanji_practiced), 0);
+  const mastered = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_mastered : material === "kanji_examples" ? row.kanji_example_mastered : row.kanji_mastered), 0);
+  const weak = rows.reduce((sum, row) => sum + (material === "vocabulary" ? row.vocabulary_weak : material === "kanji_examples" ? row.kanji_example_weak : row.kanji_weak), 0);
+  const exampleSetsMastered = rows.reduce((sum, row) => sum + row.kanji_example_sets_mastered, 0);
+  const kanjiTotal = rows.reduce((sum, row) => sum + row.kanji_total, 0);
+  return {manualTotal, known, unknown, unmarked: Math.max(manualTotal - known - unknown, 0), reviewedPercent: percentage(known + unknown, manualTotal), practiceTotal, practiced, neverTouched: Math.max(practiceTotal - practiced, 0), mastered, weak, masteryPercent: percentage(mastered, practiceTotal), exampleSetsMastered, kanjiTotal};
 }
+
+function materialName(material: Material) { return material === "vocabulary" ? "Vocabulary words" : material === "kanji_examples" ? "Kanji example words" : "Kanji characters"; }
 
 function Metric({label, value, icon, tone}: {label: string; value: number; icon?: React.ReactNode; tone?: "known" | "unknown"}) {
   return <div className={`rounded-xl p-3 ${tone === "known" ? "bg-green-50 text-moss" : tone === "unknown" ? "bg-red-50 text-persimmon" : "bg-stone-50 text-stone-600"}`}><span className="flex items-center gap-1 text-xs font-medium">{icon}{label}</span><strong className="mt-2 block text-2xl">{value}</strong></div>;

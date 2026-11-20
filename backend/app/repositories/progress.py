@@ -12,11 +12,12 @@ def progress(db: Session = None):
         select(
             select(func.count()).select_from(Vocabulary).scalar_subquery(),
             select(func.count()).select_from(Kanji).scalar_subquery(),
+            select(func.count()).select_from(KanjiExample).scalar_subquery(),
             *[
                 func.count().filter(
                     and_(ItemProgress.item_type == kind, ItemProgress.attempts > 0)
                 )
-                for kind in ("vocabulary", "kanji")
+                for kind in ("vocabulary", "kanji", "kanji_example")
             ],
             *[
                 func.count().filter(
@@ -26,16 +27,16 @@ def progress(db: Session = None):
                         ItemProgress.status == status,
                     )
                 )
-                for kind in ("vocabulary", "kanji")
+                for kind in ("vocabulary", "kanji", "kanji_example")
                 for status in ("learning", "weak", "mastered")
             ],
         )
     ).one()
     result = []
-    for index, item_type in enumerate(("vocabulary", "kanji")):
+    for index, item_type in enumerate(("vocabulary", "kanji", "kanji_example")):
         total = row[index]
-        practiced = row[2 + index]
-        learning, weak, mastered = row[4 + index * 3 : 7 + index * 3]
+        practiced = row[3 + index]
+        learning, weak, mastered = row[6 + index * 3 : 9 + index * 3]
         result.append(
             ProgressRead(
                 item_type=item_type,
@@ -100,10 +101,49 @@ def book_coverage(db: Session = None):
             func.count(KanjiExample.id).label("total"),
             func.count(KanjiExample.id).filter(KanjiExample.knowledge_status == "unknown").label("unknown"),
             func.count(KanjiExample.id).filter(KanjiExample.knowledge_status == "known").label("known"),
+            func.count(ItemProgress.id).filter(ItemProgress.attempts > 0).label("practiced"),
+            func.count(ItemProgress.id).filter(ItemProgress.status == "mastered").label("mastered"),
+            func.count(ItemProgress.id).filter(ItemProgress.status == "weak").label("weak"),
         )
         .join(KanjiExample, KanjiExample.kanji_source_id == KanjiSource.id)
+        .outerjoin(ItemProgress, and_(ItemProgress.item_type == "kanji_example", ItemProgress.item_id == KanjiExample.id))
         .where(KanjiSource.chapter_id.is_not(None))
         .group_by(KanjiSource.chapter_id)
+    ).subquery()
+    example_source_rollup = (
+        select(
+            KanjiSource.chapter_id.label("chapter_id"),
+            KanjiSource.id.label("source_id"),
+            func.count(KanjiExample.id).label("total"),
+            func.count(ItemProgress.id)
+            .filter(ItemProgress.status == "mastered")
+            .label("mastered"),
+        )
+        .join(KanjiExample, KanjiExample.kanji_source_id == KanjiSource.id)
+        .outerjoin(
+            ItemProgress,
+            and_(
+                ItemProgress.item_type == "kanji_example",
+                ItemProgress.item_id == KanjiExample.id,
+            ),
+        )
+        .where(KanjiSource.chapter_id.is_not(None))
+        .group_by(KanjiSource.chapter_id, KanjiSource.id)
+    ).subquery()
+    completed_example_sets = (
+        select(
+            example_source_rollup.c.chapter_id,
+            func.count(example_source_rollup.c.source_id)
+            .filter(
+                and_(
+                    example_source_rollup.c.total > 0,
+                    example_source_rollup.c.mastered
+                    == example_source_rollup.c.total,
+                )
+            )
+            .label("completed"),
+        )
+        .group_by(example_source_rollup.c.chapter_id)
     ).subquery()
     rows = []
     stmt = (
@@ -122,6 +162,10 @@ def book_coverage(db: Session = None):
             func.coalesce(example_lacking.c.total, 0),
             func.coalesce(example_lacking.c.unknown, 0),
             func.coalesce(example_lacking.c.known, 0),
+            func.coalesce(example_lacking.c.practiced, 0),
+            func.coalesce(example_lacking.c.mastered, 0),
+            func.coalesce(example_lacking.c.weak, 0),
+            func.coalesce(completed_example_sets.c.completed, 0),
             func.coalesce(kanji_lacking.c.weak, 0),
         )
         .join(Book)
@@ -130,6 +174,7 @@ def book_coverage(db: Session = None):
         .outerjoin(kanji, kanji.c.chapter_id == Chapter.id)
         .outerjoin(vocab_lacking, vocab_lacking.c.chapter_id == Chapter.id)
         .outerjoin(example_lacking, example_lacking.c.chapter_id == Chapter.id)
+        .outerjoin(completed_example_sets, completed_example_sets.c.chapter_id == Chapter.id)
         .outerjoin(kanji_lacking, kanji_lacking.c.chapter_id == Chapter.id)
         .order_by(Book.title, Chapter.sort_order)
     )
@@ -148,6 +193,10 @@ def book_coverage(db: Session = None):
         example_total,
         example_unknown,
         example_known,
+        example_practiced,
+        example_mastered,
+        example_weak,
+        example_sets_mastered,
         kanji_weak,
     ) in db.execute(stmt):
         rows.append(
@@ -175,6 +224,10 @@ def book_coverage(db: Session = None):
                 kanji_mastered=kanji_mastered,
                 kanji_example_unknown=example_unknown,
                 kanji_example_known=example_known,
+                kanji_example_practiced=example_practiced,
+                kanji_example_mastered=example_mastered,
+                kanji_example_weak=example_weak,
+                kanji_example_sets_mastered=example_sets_mastered,
                 kanji_weak=kanji_weak,
             )
         )

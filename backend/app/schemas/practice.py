@@ -114,6 +114,10 @@ class CoverageChapter(OrmModel):
     kanji_practiced: int = 0
     kanji_example_unknown: int = 0
     kanji_example_known: int = 0
+    kanji_example_practiced: int = 0
+    kanji_example_mastered: int = 0
+    kanji_example_weak: int = 0
+    kanji_example_sets_mastered: int = 0
     kanji_weak: int = 0
 
 

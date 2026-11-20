@@ -27,7 +27,8 @@ class ItemProgress(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("item_type", "item_id", name="uq_progress_item"),
         CheckConstraint(
-            "item_type in ('vocabulary', 'kanji')", name="ck_progress_item_type"
+            "item_type in ('vocabulary', 'kanji', 'kanji_example')",
+            name="ck_progress_item_type",
         ),
         CheckConstraint(
             "status in ('new', 'learning', 'weak', 'mastered')",
@@ -132,7 +133,8 @@ class PracticeAnswer(Base):
     __tablename__ = "practice_answers"
     __table_args__ = (
         CheckConstraint(
-            "item_type in ('vocabulary', 'kanji')", name="ck_answer_item_type"
+            "item_type in ('vocabulary', 'kanji', 'kanji_example')",
+            name="ck_answer_item_type",
         ),
         CheckConstraint("result in ('correct', 'wrong')", name="ck_answer_result"),
     )

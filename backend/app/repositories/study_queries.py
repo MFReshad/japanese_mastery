@@ -231,6 +231,15 @@ def study_detail(kind: str, source_id: str, db: Session = None):
             "knowledge_status": source.knowledge_status,
             "is_starred": is_starred,
         }
+    example_progress = {
+        progress.item_id: progress
+        for progress in db.scalars(
+            select(ItemProgress).where(
+                ItemProgress.item_type == "kanji_example",
+                ItemProgress.item_id.in_([example.id for example in source.examples]),
+            )
+        )
+    } if source.examples else {}
     return {
         **common,
         "character": source.kanji.character,
@@ -246,6 +255,17 @@ def study_detail(kind: str, source_id: str, db: Session = None):
                 "meaning": example.meaning,
                 "is_important": example.is_important,
                 "knowledge_status": example.knowledge_status,
+                "practice_status": (
+                    example_progress[example.id].status
+                    if example.id in example_progress
+                    and example_progress[example.id].attempts > 0
+                    else "new"
+                ),
+                "attempts": (
+                    example_progress[example.id].attempts
+                    if example.id in example_progress
+                    else 0
+                ),
             }
             for example in sorted(source.examples, key=lambda e: (e.sort_order, e.id))
         ],

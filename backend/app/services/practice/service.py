@@ -25,6 +25,50 @@ from .vocabulary_questions import question_from_vocab
 from .kanji_questions import questions_from_kanji, example_word_questions
 
 
+def _example_matches_filters(example, progress, conditions: set[str], mode: str) -> bool:
+    knowledge = conditions & {"known", "unknown"}
+    if knowledge and example.knowledge_status not in knowledge:
+        return False
+
+    progress_conditions = conditions & {
+        "weak", "wrong", "never_practiced", "learning", "mastered"
+    }
+    if progress_conditions:
+        matches_progress = False
+        for condition in progress_conditions:
+            if condition == "never_practiced":
+                matches_progress |= progress is None or progress.attempts == 0
+            elif condition == "wrong":
+                matches_progress |= bool(
+                    progress
+                    and (progress.status == "weak" or progress.last_result == "wrong")
+                )
+            else:
+                matches_progress |= bool(
+                    progress and progress.attempts > 0 and progress.status == condition
+                )
+        if not matches_progress:
+            return False
+    if "starred" in conditions and not example.is_important:
+        return False
+    if conditions or mode == "random":
+        return True
+
+    if mode == "never_practiced":
+        return progress is None or progress.attempts == 0
+    if mode == "weak":
+        return bool(progress and progress.status == "weak")
+    if mode == "wrong":
+        return bool(
+            progress and (progress.status == "weak" or progress.last_result == "wrong")
+        )
+    if mode == "mastery_review":
+        return progress is None or progress.attempts == 0 or progress.status != "mastered"
+    if mode in ("starred", "starred_priority"):
+        return example.is_important
+    return True
+
+
 def start_practice(
     db: Session, payload: PracticeStartRequest
 ) -> tuple[PracticeSession, list[PracticeQuestion]]:
@@ -46,10 +90,38 @@ def start_practice(
             if (draft := question_from_vocab(source, direction=direction)) is not None
         )
     if payload.practice_type in ("kanji", "mixed", "important_kanji_words", "kanji_example_words"):
-        kanji = _eligible_sources(db, payload, "kanji")
         if payload.practice_type in ("important_kanji_words", "kanji_example_words"):
+            # Source scope (book/chapter/order) is selected first. Status filters
+            # are applied to each example below, never to the parent kanji.
+            source_payload = payload.model_copy(
+                update={"conditions": [], "mode": "random", "question_count": None}
+            )
+            kanji = _eligible_sources(db, source_payload, "kanji")
             selected_conditions = set(payload.conditions)
             manual_knowledge = selected_conditions & {"known", "unknown"}
+            example_ids = {
+                example.id for source in kanji for example in source.examples
+            }
+            progress_by_example = {
+                progress.item_id: progress
+                for progress in db.scalars(
+                    select(ItemProgress).where(
+                        ItemProgress.item_type == "kanji_example",
+                        ItemProgress.item_id.in_(example_ids),
+                    )
+                )
+            } if example_ids else {}
+            allowed_example_ids = {
+                example.id
+                for source in kanji
+                for example in source.examples
+                if _example_matches_filters(
+                    example,
+                    progress_by_example.get(example.id),
+                    selected_conditions,
+                    payload.mode,
+                )
+            }
             drafts.extend(
                 draft
                 for source in kanji
@@ -60,9 +132,11 @@ def start_practice(
                         or "starred" in selected_conditions
                     ),
                     knowledge=manual_knowledge or None,
+                    allowed_example_ids=allowed_example_ids,
                 )
             )
         else:
+            kanji = _eligible_sources(db, payload, "kanji")
             drafts.extend(draft for source in kanji for draft in questions_from_kanji(source))
     if payload.mode == "starred_priority":
         random.shuffle(
@@ -72,7 +146,9 @@ def start_practice(
         priorities = {
             (p.item_type, p.item_id): ranks[p.status]
             for p in db.scalars(
-                select(ItemProgress).where(ItemProgress.is_starred.is_(True))
+                select(ItemProgress).where(
+                    ItemProgress.item_type.in_({draft.item_type for draft in drafts})
+                )
             )
         }
         drafts.sort(

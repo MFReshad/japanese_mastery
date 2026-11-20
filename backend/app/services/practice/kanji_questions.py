@@ -159,10 +159,13 @@ def example_word_questions(
     *,
     important_only: bool = False,
     knowledge: set[str] | None = None,
+    allowed_example_ids: set[int] | None = None,
 ) -> list[QuestionDraft]:
     """One simple word-only recall card for each matching example."""
     result = []
     for example in sorted(source.examples, key=lambda e: (e.sort_order, e.id)):
+        if allowed_example_ids is not None and example.id not in allowed_example_ids:
+            continue
         word = example.word.strip()
         reading = example.reading.strip()
         meaning = example.meaning.strip()
@@ -174,8 +177,8 @@ def example_word_questions(
             continue
         result.append(
             QuestionDraft(
-                "kanji",
-                source.kanji_id,
+                "kanji_example",
+                example.id,
                 source.id,
                 "important_kanji_word",
                 word,

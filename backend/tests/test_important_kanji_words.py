@@ -1,5 +1,7 @@
+from sqlalchemy import select
+
 from app.models.item import KanjiExample
-from app.models.practice import PracticeQuestion
+from app.models.practice import ItemProgress, PracticeQuestion
 
 
 def _book_and_chapter(client):
@@ -50,8 +52,37 @@ def test_mark_and_practice_important_kanji_word(client, db_session):
     assert started["questions"][0]["prompt"] == "住む"
     assert started["questions"][0]["question_type"] == "important_kanji_word"
     question = db_session.get(PracticeQuestion, started["questions"][0]["question_id"])
+    assert question.item_type == "kanji_example"
+    assert question.item_id == marked["id"]
     assert question.answer_primary == "すむ"
     assert question.answer_secondary == "to live"
+
+    client.post(
+        f"/practice/questions/{question.id}/reveal",
+        json={"session_id": started["session_id"]},
+    )
+    answered = client.post(
+        "/practice/answer",
+        json={
+            "session_id": started["session_id"],
+            "question_id": question.id,
+            "result": "wrong",
+        },
+    )
+    assert answered.status_code == 200, answered.text
+    example_progress = db_session.scalar(
+        select(ItemProgress).where(
+            ItemProgress.item_type == "kanji_example",
+            ItemProgress.item_id == marked["id"],
+        )
+    )
+    assert example_progress.status == "weak"
+    assert db_session.scalar(
+        select(ItemProgress).where(
+            ItemProgress.item_type == "kanji",
+            ItemProgress.item_id == source["kanji_id"],
+        )
+    ) is None
 
 
 def test_regular_kanji_practice_is_unchanged(client, db_session):

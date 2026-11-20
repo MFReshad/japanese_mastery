@@ -48,7 +48,7 @@ def review_items(
             stmt = stmt.where(or_(model.expression_as_printed.ilike(pattern), model.reading_as_printed.ilike(pattern), model.meaning_as_printed.ilike(pattern)))
         knowledge_col, important_col = model.knowledge_status, ItemProgress.is_starred
     else:
-        model, progress_id = KanjiExample, KanjiSource.kanji_id
+        model, progress_id = KanjiExample, KanjiExample.id
         stmt = select(
             model.id, KanjiSource.book_id, KanjiSource.chapter_id, model.word,
             model.reading, model.meaning, model.knowledge_status,
@@ -61,7 +61,7 @@ def review_items(
             pattern = f"%{term}%"
             stmt = stmt.where(or_(model.word.ilike(pattern), model.reading.ilike(pattern), model.meaning.ilike(pattern), Kanji.character.ilike(pattern)))
         knowledge_col, important_col = model.knowledge_status, model.is_important
-    stmt = stmt.outerjoin(ItemProgress, and_(ItemProgress.item_type == ("vocabulary" if kind == "vocabulary" else "kanji"), ItemProgress.item_id == progress_id)).where(Book.is_active.is_(True))
+    stmt = stmt.outerjoin(ItemProgress, and_(ItemProgress.item_type == ("vocabulary" if kind == "vocabulary" else "kanji_example"), ItemProgress.item_id == progress_id)).where(Book.is_active.is_(True))
     source_book = VocabularySource.book_id if kind == "vocabulary" else KanjiSource.book_id
     source_chapter = VocabularySource.chapter_id if kind == "vocabulary" else KanjiSource.chapter_id
     if book_id is not None: stmt = stmt.where(source_book == book_id)
