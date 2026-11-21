@@ -5,6 +5,7 @@ import { ArrowRight, Check, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, Coverage } from "@/lib/api";
 import { ErrorState, LoadingState } from "@/components/ui";
+import { PracticeHistory } from "@/features/progress/PracticeHistory";
 
 type Material = "vocabulary" | "kanji_examples" | "kanji";
 
@@ -15,6 +16,7 @@ export default function ProgressPage() {
   const [material, setMaterial] = useState<Material>("vocabulary");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
   useEffect(() => { api<Coverage[]>("/progress/books").then(setCoverage).catch(reason => setError(String(reason))).finally(() => setLoading(false)); }, []);
 
   const books = useMemo(() => Array.from(new Map(coverage.map(row => [row.book_id, row.book_title])).entries()).map(([id, title]) => ({id, title})), [coverage]);
@@ -23,10 +25,13 @@ export default function ProgressPage() {
   const stats = aggregate(scoped, material);
   const scopeName = chapterId ? chapters.find(row => String(row.chapter_id) === chapterId)?.chapter_title : bookId ? books.find(book => String(book.id) === bookId)?.title : "All books";
 
-  if (loading) return <LoadingState className="mx-auto h-96 max-w-5xl animate-pulse rounded-2xl bg-stone-100" />;
+  const header = <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-[0.14em] text-moss">Progress</p><h1 className="mt-1 text-3xl font-semibold">{showHistory ? "Practice history" : "Learning status"}</h1><p className="mt-2 text-stone-600">{showHistory ? "Review previous sessions, answers, and study sources." : "Choose exactly what you want to measure."}</p></div><button type="button" onClick={() => setShowHistory(current => !current)} className="min-h-11 rounded-lg border border-moss bg-white px-4 font-semibold text-moss hover:bg-moss hover:text-white">{showHistory ? "Learning status" : "History"}</button></header>;
+
+  if (showHistory) return <div className="mx-auto max-w-5xl space-y-6 pb-12">{header}<PracticeHistory /></div>;
+  if (loading) return <div className="mx-auto max-w-5xl space-y-6 pb-12">{header}<LoadingState className="h-96 animate-pulse rounded-2xl bg-stone-100" /></div>;
 
   return <div className="mx-auto max-w-5xl space-y-6 pb-12">
-    <header><p className="text-sm font-semibold uppercase tracking-[0.14em] text-moss">Progress</p><h1 className="mt-1 text-3xl font-semibold">Learning status</h1><p className="mt-2 text-stone-600">Choose exactly what you want to measure.</p></header>
+    {header}
     {error && <ErrorState className="rounded-xl border border-persimmon bg-white p-4 text-persimmon">{error}</ErrorState>}
 
     <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">

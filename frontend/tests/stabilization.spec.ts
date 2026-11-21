@@ -56,6 +56,27 @@ test("practice reveal survives page reload and saves exactly once", async ({ pag
   await expect(page.getByText("Session complete.")).toBeVisible();
 });
 
+test("practice history shows setup results details filters and study link", async ({ page, request }) => {
+  const { book, chapters, sources } = await seed(request);
+  await page.goto(`/practice?practice_type=vocabulary&book_id=${book.id}&chapter_id=${chapters[1].id}&source_entry_id=${sources[0].id}`);
+  await page.getByRole("button", {name: "Start", exact: true}).click();
+  await page.getByRole("button", {name: "Show answer"}).click();
+  await page.getByRole("button", {name: "Wrong", exact: true}).click();
+  await expect(page.getByText("Session complete.")).toBeVisible();
+
+  await page.goto("/progress");
+  await page.getByRole("button", {name: "History", exact: true}).click();
+  const sessionRow = page.locator("tbody > tr").first();
+  await expect(sessionRow).toContainText("1/1");
+  await expect(sessionRow.locator("td").nth(4)).toHaveText("1");
+  await sessionRow.click();
+  await expect(page.getByText("1 requested · 1 generated")).toBeVisible();
+  await page.getByRole("combobox", {name: "Result"}).selectOption("wrong");
+  await expect(page.locator('a[target="_blank"]', {hasText: "Study"})).toHaveCount(1);
+  await page.getByLabel("Search history details").fill("no matching question text");
+  await expect(page.getByText("No questions match these filters.")).toBeVisible();
+});
+
 test("queued answer recovers after network failure and reload", async ({ page, request }) => {
   const { sources } = await seed(request);
   await page.goto(`/practice?practice_type=vocabulary&source_entry_id=${sources[0].id}`);

@@ -93,6 +93,7 @@ class PracticeSession(Base):
     wrong_count: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
+    filter_snapshot: Mapped[Optional[dict]] = mapped_column(JSON)
 
     answers: Mapped[list["PracticeAnswer"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"

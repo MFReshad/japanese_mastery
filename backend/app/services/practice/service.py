@@ -165,6 +165,7 @@ def start_practice(
         practice_type=payload.practice_type,
         mode=payload.mode,
         total_questions=len(drafts),
+        filter_snapshot=payload.model_dump(mode="json"),
     )
     db.add(session)
     db.flush()

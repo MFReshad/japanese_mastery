@@ -126,3 +126,49 @@ class AnswerResult(OrmModel):
     mastery_score: float
     attempts: int
     answered_at: datetime
+
+
+class PracticeHistorySession(OrmModel):
+    session_id: int
+    started_at: datetime
+    completed_at: datetime | None
+    practice_type: str
+    mode: str
+    total_questions: int
+    answered_count: int
+    correct_count: int
+    wrong_count: int
+    filter_snapshot: dict | None
+
+
+class PracticeHistoryPage(OrmModel):
+    sessions: list[PracticeHistorySession]
+    total: int
+    limit: int
+    offset: int
+
+
+class PracticeHistoryAnswer(OrmModel):
+    question_id: int
+    position: int
+    item_type: str
+    question_type: str
+    prompt: str
+    answer_primary: str
+    answer_secondary: str | None
+    result: str | None
+    wrong_note: str | None
+    answered_at: datetime | None
+    book_id: int | None
+    book_title: str | None
+    chapter_id: int | None
+    chapter_number: int | None
+    chapter_title: str | None
+    study_kind: str | None
+    study_source_id: str | None
+    main_kanji: str | None
+
+
+class PracticeHistoryDetail(OrmModel):
+    session: PracticeHistorySession
+    answers: list[PracticeHistoryAnswer]

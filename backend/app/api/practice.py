@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -10,10 +10,27 @@ from app.schemas.practice import (
     PracticeRevealResponse,
     PracticeStartRequest,
     PracticeStartResponse,
+    PracticeHistoryDetail,
+    PracticeHistoryPage,
 )
 from app.services.practice import PracticeService
+from app.services.practice.history import history_detail, list_history
 
 router = APIRouter()
+
+
+@router.get("/practice/history", response_model=PracticeHistoryPage)
+def history(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return list_history(db, limit, offset)
+
+
+@router.get("/practice/history/{session_id}", response_model=PracticeHistoryDetail)
+def history_session(session_id: int, db: Session = Depends(get_db)):
+    return history_detail(db, session_id)
 
 
 @router.post("/practice/start", response_model=PracticeStartResponse)
