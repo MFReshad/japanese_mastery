@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight, Play, Star } from "lucide-react";
 import { api, KnowledgeStatus, StudyDetail, StudyKind } from "@/lib/api";
+import { ErrorState, LoadingState } from "@/components/ui";
 
 export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId: string }) {
   const [detail, setDetail] = useState<StudyDetail | null>(null);
@@ -21,8 +22,8 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
     return () => { active = false; };
   }, [kind, sourceId]);
 
-  if (error) return <p role="alert" className="mx-auto max-w-3xl py-12 text-persimmon">{error}</p>;
-  if (!detail) return <p className="mx-auto max-w-3xl py-12 text-stone-500">Loading...</p>;
+  if (error) return <ErrorState className="mx-auto max-w-3xl py-12 text-persimmon">{error}</ErrorState>;
+  if (!detail) return <LoadingState className="mx-auto max-w-3xl py-12 text-stone-500">Loading...</LoadingState>;
 
   const backQuery = new URLSearchParams({ book: String(detail.book_id), kind });
   if (detail.chapter_id !== null) backQuery.set("chapter", String(detail.chapter_id));

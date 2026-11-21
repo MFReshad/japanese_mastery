@@ -14,6 +14,19 @@ test("management modal supports keyboard dismissal and restores focus", async ({
   await expect(trigger).toBeFocused();
 });
 
+test("compare view settings remain interactive without comparison data", async ({ page }) => {
+  await page.goto("/manage/compare");
+  await page.getByRole("button", {name: "Content view settings"}).click();
+  const mainWord = page.getByRole("switch", {name: "Main word"});
+  await expect(mainWord).toHaveAttribute("aria-checked", "true");
+  await mainWord.click();
+  await expect(mainWord).toHaveAttribute("aria-checked", "false");
+  await page.reload();
+  await page.getByRole("button", {name: "Content view settings"}).click();
+  await expect(page.getByRole("switch", {name: "Main word"})).toHaveAttribute("aria-checked", "false");
+  await page.getByRole("button", {name: "Reset"}).click();
+});
+
 async function seed(request: APIRequestContext) {
   const book = await (await request.post(`${backend}/books`, { headers, data: { title: `Browser ${Date.now()}` } })).json();
   const chapters = [];
