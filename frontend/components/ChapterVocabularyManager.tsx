@@ -7,7 +7,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp, GripVertical, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, Book, Chapter, invalidateLookups, VocabSource } from "@/lib/api";
-import { Badge, inputClass, Modal, primaryButton, secondaryButton } from "@/features/management/shared";
+import { Badge, inputClass, Modal, primaryButton, secondaryButton } from "@/components/ui";
 
 export default function ChapterVocabularyManager({ books, chapters, initialBookId = "", initialChapterId = "" }: { books: Book[]; chapters: Chapter[]; initialBookId?: string; initialChapterId?: string }) {
   const requestVersion = useRef(0);

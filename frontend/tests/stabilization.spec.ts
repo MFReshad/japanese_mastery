@@ -2,6 +2,31 @@ import { test, expect, APIRequestContext } from "@playwright/test";
 
 const backend = "http://127.0.0.1:8100";
 const headers = {};
+
+test("management modal supports keyboard dismissal and restores focus", async ({ page }) => {
+  await page.goto("/manage/books");
+  const trigger = page.getByRole("button", {name: "Add book"});
+  await trigger.click();
+  await expect(page.getByRole("dialog", {name: "Add book"})).toBeVisible();
+  await expect(page.getByLabel("Title", {exact: true})).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", {name: "Add book"})).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("compare view settings remain interactive without comparison data", async ({ page }) => {
+  await page.goto("/manage/compare");
+  await page.getByRole("button", {name: "Content view settings"}).click();
+  const mainWord = page.getByRole("switch", {name: "Main word"});
+  await expect(mainWord).toHaveAttribute("aria-checked", "true");
+  await mainWord.click();
+  await expect(mainWord).toHaveAttribute("aria-checked", "false");
+  await page.reload();
+  await page.getByRole("button", {name: "Content view settings"}).click();
+  await expect(page.getByRole("switch", {name: "Main word"})).toHaveAttribute("aria-checked", "false");
+  await page.getByRole("button", {name: "Reset"}).click();
+});
+
 async function seed(request: APIRequestContext) {
   const book = await (await request.post(`${backend}/books`, { headers, data: { title: `Browser ${Date.now()}` } })).json();
   const chapters = [];
@@ -92,6 +117,10 @@ test("management dashboard opens books and creates a book", async ({ page }) => 
   await page.goto("/manage");
   await page.getByRole("link", {name: /Books/}).click();
   const title = `Created in browser ${Date.now()}`;
+  await page.getByRole("button", {name: "Add book"}).click();
+  await expect(page.getByRole("dialog", {name: "Add book"})).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", {name: "Add book"})).toHaveCount(0);
   await page.getByRole("button", {name: "Add book"}).click();
   await page.getByLabel("Title", {exact: true}).fill(title);
   await page.getByLabel("Short name").fill(`B${Date.now()}`);

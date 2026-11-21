@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, BookOpen, ChevronRight, Play } from "lucide-react";
 import { api, Book, Chapter, getActiveBooks, getChapters, StudyKind, StudyListItem, StudyNextChapter } from "@/lib/api";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
 
 export default function StudyPage() {
   return <Suspense fallback={<main className="py-12">Loading...</main>}><StudyHome /></Suspense>;
@@ -133,10 +134,10 @@ function StudyHome() {
       <div><p className="text-sm text-stone-500">{selectedChapter.part !== null ? `Part ${selectedChapter.part} · ` : ""}Lesson {selectedChapter.chapter_number}</p><h2 className="text-2xl font-semibold">{selectedChapter.title}</h2></div>
       <span className="shrink-0 text-sm text-stone-500">{loading ? "..." : `${items.length} ${kind === "kanji" ? "kanji" : "words"}`}</span>
     </div>}
-    {error && <p role="alert" className="mt-5 text-persimmon">{error}</p>}
+    {error && <ErrorState className="mt-5 text-persimmon">{error}</ErrorState>}
     {!selectedChapter && <p className="py-12 text-center text-stone-500">Select a lesson to begin.</p>}
-    {selectedChapter && !loading && items.length === 0 && !error && <p className="py-12 text-center text-stone-500">No {kind} in this lesson.</p>}
-    {selectedChapter && loading && <div aria-label="Loading lesson" className="mt-4 space-y-3">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-20 animate-pulse bg-stone-100" />)}</div>}
+    {selectedChapter && !loading && items.length === 0 && !error && <EmptyState className="py-12 text-center text-stone-500">No {kind} in this lesson.</EmptyState>}
+    {selectedChapter && loading && <LoadingState label="Loading lesson" className="mt-4 space-y-3">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-20 animate-pulse bg-stone-100" />)}</LoadingState>}
     <div className="divide-y divide-stone-200">
       {items.map((item) => <Link href={`/study/${kind}/${encodeURIComponent(item.source_id)}`} key={item.source_id} className="group flex min-h-24 items-center gap-4 py-4 hover:bg-white/60">
         <span className="w-9 shrink-0 text-right text-sm tabular-nums text-stone-400">{item.item_order}</span>

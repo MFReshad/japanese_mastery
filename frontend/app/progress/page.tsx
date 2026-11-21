@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Check, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, Coverage } from "@/lib/api";
+import { ErrorState, LoadingState } from "@/components/ui";
 
 type Material = "vocabulary" | "kanji_examples" | "kanji";
 
@@ -22,11 +23,11 @@ export default function ProgressPage() {
   const stats = aggregate(scoped, material);
   const scopeName = chapterId ? chapters.find(row => String(row.chapter_id) === chapterId)?.chapter_title : bookId ? books.find(book => String(book.id) === bookId)?.title : "All books";
 
-  if (loading) return <div className="mx-auto h-96 max-w-5xl animate-pulse rounded-2xl bg-stone-100" />;
+  if (loading) return <LoadingState className="mx-auto h-96 max-w-5xl animate-pulse rounded-2xl bg-stone-100" />;
 
   return <div className="mx-auto max-w-5xl space-y-6 pb-12">
     <header><p className="text-sm font-semibold uppercase tracking-[0.14em] text-moss">Progress</p><h1 className="mt-1 text-3xl font-semibold">Learning status</h1><p className="mt-2 text-stone-600">Choose exactly what you want to measure.</p></header>
-    {error && <p role="alert" className="rounded-xl border border-persimmon bg-white p-4 text-persimmon">{error}</p>}
+    {error && <ErrorState className="rounded-xl border border-persimmon bg-white p-4 text-persimmon">{error}</ErrorState>}
 
     <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-500">Filters</h2>

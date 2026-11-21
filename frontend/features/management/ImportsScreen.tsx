@@ -1,7 +1,8 @@
 "use client";
 import { useRef, useState } from "react";
 import { api, invalidateLookups } from "@/lib/api";
-import { ManageHeader, primaryButton, secondaryButton } from "./shared";
+import { primaryButton, secondaryButton } from "@/components/ui";
+import { ManageHeader } from "./ManageHeader";
 type ImportSection = { would_insert?: number; would_update?: number; would_skip?: number; preserved_overrides?: number; suppressed_records?: number; conflicts?: unknown[]; errors?: unknown[] };
 type ImportSummary = { dry_run?: boolean; rolled_back?: boolean; fatal_error?: string | null };
 type ImportResult = { summary?: ImportSummary; [key: string]: ImportSection | ImportSummary | undefined };

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { api, Book, getBooks, invalidateLookups, isBookActive } from "@/lib/api";
-import { Badge, inputClass, ManageHeader, Modal, primaryButton, secondaryButton } from "./shared";
+import { Badge, inputClass, Modal, primaryButton, secondaryButton } from "@/components/ui";
+import { ManageHeader } from "./ManageHeader";
 const empty = { title: "", short_name: "", edition: "", jlpt_level: "", description: "", is_active: true };
 export default function BooksScreen() {
   const [books, setBooks] = useState<Book[]>([]); const [editing, setEditing] = useState<Book | "new" | null>(null); const [draft, setDraft] = useState(empty); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false); const [busyBookId, setBusyBookId] = useState<number | null>(null);

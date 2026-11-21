@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { api, Book, Chapter, getActiveBooks, getChaptersByBook, invalidateLookups } from "@/lib/api";
 import { sortChaptersByPart } from "@/lib/chapterSort";
-import { inputClass, ManageHeader, Modal, primaryButton, secondaryButton } from "./shared";
+import { inputClass, Modal, primaryButton, secondaryButton } from "@/components/ui";
+import { ManageHeader } from "./ManageHeader";
 type Draft = { chapter_number: number; title: string; part: string; sort_order: number };
 
 export default function ChaptersScreen() {
