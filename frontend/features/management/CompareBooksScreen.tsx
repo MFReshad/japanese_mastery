@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Settings, Star, X } from "lucide-react";
 import Link from "next/link";
 import { api, Book, getActiveBooks } from "@/lib/api";
-import { ManageHeader } from "./shared";
+import { ManageHeader } from "./ManageHeader";
 
 type Kind = "vocabulary" | "kanji";
 type Direction = "asc" | "desc";

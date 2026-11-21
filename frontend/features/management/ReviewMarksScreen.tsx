@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { api, Book, Chapter, getActiveBooks, getChapters } from "@/lib/api";
-import { ManageHeader } from "./shared";
+import { ManageHeader } from "./ManageHeader";
 
 type Kind = "vocabulary" | "kanji_examples";
 type Row = { id:number; book_id:number; chapter_id:number|null; word:string; reading:string; meaning:string; knowledge_status:"known"|"unknown"|null; practice_status:string; is_important:boolean; book_title:string; chapter_number:number|null; chapter_title:string|null };
