@@ -18,6 +18,7 @@ type LibraryItem = {
 };
 type LibraryPageResult = { items: LibraryItem[]; total: number; page: number; page_size: number };
 type LibraryFilter = "all" | "new" | "learning" | "weak" | "mastered" | "starred";
+type LibrarySort = "book_chapter" | "chapter_reverse" | "az" | "za";
 
 export default function LibraryPage() {
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -29,6 +30,7 @@ export default function LibraryPage() {
   const [chapterId, setChapterId] = useState("");
   const [statusFilter, setStatusFilter] = useState<LibraryFilter>("all");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<LibrarySort>("book_chapter");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<LibraryPageResult>({ items: [], total: 0, page: 1, page_size: 50 });
@@ -46,12 +48,13 @@ export default function LibraryPage() {
     if (chapterId) qs.set("chapter_id", chapterId);
     if (statusFilter !== "all") qs.set("status", statusFilter);
     if (debouncedSearch) qs.set("search", debouncedSearch);
+    qs.set("sort", sort);
     setLoading(true); setError("");
     api<LibraryPageResult>(`/library/items?${qs}`).then((data) => { if (active) setResult(data); })
       .catch((reason) => { if (active) setError(String(reason)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [type, bookId, chapterId, statusFilter, debouncedSearch, page, reloadVersion]);
+  }, [type, bookId, chapterId, statusFilter, debouncedSearch, sort, page, reloadVersion]);
 
   const lastPage = Math.max(1, Math.ceil(result.total / result.page_size));
   const activeKind = useRef(type);
@@ -89,8 +92,8 @@ export default function LibraryPage() {
     </div>
     {error && <ErrorState className="text-persimmon">{error}</ErrorState>}
     {loading ? <LoadingState className="grid gap-3 md:grid-cols-2" label="Loading library">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-32 animate-pulse rounded border border-stone-200 bg-stone-100" />)}</LoadingState> : <>
-      <div className="text-sm text-stone-600">{result.total} {type === "kanji" ? "kanji entries" : "vocabulary entries"}</div>
-      <div className="grid gap-3 md:grid-cols-2">{result.items.map((item) => <article key={item.id} className="rounded border border-stone-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><h2 className={`${type === "kanji" ? "text-5xl" : "text-2xl"} font-semibold`}>{type === "kanji" ? item.character : item.expression_as_printed}</h2><div className="flex shrink-0 items-center gap-2"><Status status={item.status} /><button type="button" aria-label={item.is_starred ? "Unstar item" : "Star item"} title={item.is_starred ? "Unstar item" : "Star item"} className="flex min-h-9 min-w-9 items-center justify-center rounded border border-stone-200 text-moss hover:bg-stone-50" onClick={() => toggleStar(item)}><Star size={18} fill={item.is_starred ? "currentColor" : "none"} /></button></div></div>{type === "vocabulary" && <p className="text-lg text-stone-600">{item.reading_as_printed}</p>}<p className="mt-2">{item.meaning_as_printed}</p>{type === "kanji" && <><p className="text-sm text-stone-600">On: {item.onyomi?.join(" / ") || "-"}</p><p className="text-sm text-stone-600">Kun: {item.kunyomi?.join(" / ") || "-"}</p>{item.matching_examples && item.matching_examples.length > 0 && <div className="mt-3 border-t border-stone-100 pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Matching examples</p><div className="flex flex-wrap gap-2">{item.matching_examples.map(example => <div key={example.id} className="rounded-md border border-stone-200 bg-stone-50 px-2 py-1 text-ink"><div><span className="font-medium">{example.word}</span> <span className="text-moss">{example.reading}</span></div><div className="text-sm text-stone-600">{example.meaning}</div></div>)}</div></div>}</>}<Link href={`/study/${type}/${encodeURIComponent(item.source_id)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-moss">Study <ArrowRight size={15} /></Link></article>)}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div className="text-sm text-stone-600">{result.total} {type === "kanji" ? "kanji entries" : "vocabulary entries"}</div><label className="flex items-center gap-2 text-sm font-medium text-stone-600">Sort<select aria-label="Sort library" className="min-h-10 rounded border border-stone-300 bg-white px-3 text-ink" value={sort} onChange={event => { setSort(event.target.value as LibrarySort); setPage(1); }}><option value="book_chapter">Book, chapter (default)</option><option value="chapter_reverse">Chapter reverse</option><option value="az">A–Z</option><option value="za">Z–A</option></select></label></div>
+      <div className="grid gap-3 md:grid-cols-2">{result.items.map((item) => { const book = books.find(entry => entry.id === item.book_id); const chapter = chapters.find(entry => entry.id === item.chapter_id); return <article key={item.id} className="rounded border border-stone-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><h2 className={`${type === "kanji" ? "text-5xl" : "text-2xl"} font-semibold`}>{type === "kanji" ? item.character : item.expression_as_printed}</h2><div className="flex shrink-0 items-center gap-2"><Status status={item.status} /><button type="button" aria-label={item.is_starred ? "Unstar item" : "Star item"} title={item.is_starred ? "Unstar item" : "Star item"} className="flex min-h-9 min-w-9 items-center justify-center rounded border border-stone-200 text-moss hover:bg-stone-50" onClick={() => toggleStar(item)}><Star size={18} fill={item.is_starred ? "currentColor" : "none"} /></button></div></div>{type === "vocabulary" && <p className="text-lg text-stone-600">{item.reading_as_printed}</p>}<p className="mt-2">{item.meaning_as_printed}</p>{type === "kanji" && <><p className="text-sm text-stone-600">On: {item.onyomi?.join(" / ") || "-"}</p><p className="text-sm text-stone-600">Kun: {item.kunyomi?.join(" / ") || "-"}</p>{item.matching_examples && item.matching_examples.length > 0 && <div className="mt-3 border-t border-stone-100 pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Matching examples</p><div className="flex flex-wrap gap-2">{item.matching_examples.map(example => <div key={example.id} className="rounded-md border border-stone-200 bg-stone-50 px-2 py-1 text-ink"><div><span className="font-medium">{example.word}</span> <span className="text-moss">{example.reading}</span></div><div className="text-sm text-stone-600">{example.meaning}</div></div>)}</div></div>}</>}<div className="mt-4 flex items-end justify-between gap-3 border-t border-stone-100 pt-3"><p className="min-w-0 text-sm text-stone-500"><span className="block truncate font-medium text-stone-700">{book?.title ?? "Unknown book"}</span><span>{chapter ? `Lesson ${chapter.chapter_number}${chapter.title ? ` · ${chapter.title}` : ""}` : "No chapter"}</span></p><Link href={`/study/${type}/${encodeURIComponent(item.source_id)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-moss px-3 text-sm font-medium text-moss hover:bg-moss/5">Study <ArrowRight size={15} /></Link></div></article>; })}</div>
       {result.total === 0 && <EmptyState className="py-10 text-center text-stone-500">No matching entries.</EmptyState>}
       {lastPage > 1 && <nav aria-label="Library pages" className="flex items-center justify-center gap-4 pb-6"><button aria-label="Previous page" disabled={page <= 1} className="flex min-h-11 items-center gap-1 rounded border px-3 disabled:opacity-40" onClick={() => setPage(page - 1)}><ChevronLeft size={18} /> Previous</button><span className="text-sm">{page} / {lastPage}</span><button aria-label="Next page" disabled={page >= lastPage} className="flex min-h-11 items-center gap-1 rounded border px-3 disabled:opacity-40" onClick={() => setPage(page + 1)}>Next <ChevronRight size={18} /></button></nav>}
     </>}

@@ -20,12 +20,13 @@ def library_items(
     chapter_id: int | None = None,
     status: str = "all",
     search: str = "",
+    sort: str = "book_chapter",
     page: int = 1,
     page_size: int = 50,
     db: Session = None,
 ):
     return queries.library_items(
-        kind, book_id, chapter_id, status, search, page, page_size, db
+        kind, book_id, chapter_id, status, search, sort, page, page_size, db
     )
 
 

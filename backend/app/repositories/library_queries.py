@@ -13,6 +13,7 @@ def library_items(
     chapter_id: int | None = None,
     status: str = "all",
     search: str = "",
+    sort: str = "book_chapter",
     page: int = 1,
     page_size: int = 50,
     db: Session = None,
@@ -101,8 +102,15 @@ def library_items(
             stmt = stmt.where(item_status_expression == "new")
         else:
             stmt = stmt.where(item_status_expression == status)
+    alphabetical = model.expression_as_printed if kind == "vocabulary" else Kanji.character
+    order_by = {
+        "book_chapter": (model.book_id, model.chapter_id, model.item_order, model.id),
+        "chapter_reverse": (model.book_id.desc(), model.chapter_id.desc(), model.item_order.desc(), model.id.desc()),
+        "az": (alphabetical.asc(), model.id.asc()),
+        "za": (alphabetical.desc(), model.id.desc()),
+    }.get(sort, (model.book_id, model.chapter_id, model.item_order, model.id))
     stmt = (
-        stmt.order_by(model.book_id, model.chapter_id, model.item_order, model.id)
+        stmt.order_by(*order_by)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

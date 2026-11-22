@@ -24,12 +24,13 @@ def library_items(
     chapter_id: int | None = None,
     status: str = Query("all", pattern="^(all|new|learning|weak|mastered|starred)$"),
     search: str = "",
+    sort: str = Query("book_chapter", pattern="^(book_chapter|chapter_reverse|az|za)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     return operations.library_items(
-        kind, book_id, chapter_id, status, search, page, page_size, db
+        kind, book_id, chapter_id, status, search, sort, page, page_size, db
     )
 
 
