@@ -237,7 +237,7 @@ def study_detail(kind: str, source_id: str, db: Session = None):
         for progress in db.scalars(
             select(ItemProgress).where(
                 ItemProgress.item_type == "kanji_example",
-                ItemProgress.item_id.in_([example.id for example in source.examples]),
+                ItemProgress.item_id.in_([example.canonical_id for example in source.examples]),
             )
         )
     } if source.examples else {}
@@ -246,10 +246,10 @@ def study_detail(kind: str, source_id: str, db: Session = None):
         ItemProgress.item_id == source.kanji_id,
     ))
     example_statuses = [
-        example_progress[example.id].status
-        if example.id in example_progress and example_progress[example.id].attempts > 0
+        example_progress[example.canonical_id].status
+        if example.canonical_id in example_progress and example_progress[example.canonical_id].attempts > 0
         else "new"
-        for example in source.examples
+        for example in {example.canonical_id: example for example in source.examples}.values()
     ]
     strength = calculate_kanji_strength(
         direct_status=direct_progress.status if direct_progress else None,
@@ -278,14 +278,14 @@ def study_detail(kind: str, source_id: str, db: Session = None):
                 "is_important": example.is_important,
                 "knowledge_status": example.knowledge_status,
                 "practice_status": (
-                    example_progress[example.id].status
-                    if example.id in example_progress
-                    and example_progress[example.id].attempts > 0
+                    example_progress[example.canonical_id].status
+                    if example.canonical_id in example_progress
+                    and example_progress[example.canonical_id].attempts > 0
                     else "new"
                 ),
                 "attempts": (
-                    example_progress[example.id].attempts
-                    if example.id in example_progress
+                    example_progress[example.canonical_id].attempts
+                    if example.canonical_id in example_progress
                     else 0
                 ),
             }

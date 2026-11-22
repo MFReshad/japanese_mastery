@@ -1,7 +1,7 @@
 import json
 
 from app.models.book import Book, Chapter
-from app.models.item import Kanji, KanjiSource, Vocabulary, VocabularySource
+from app.models.item import Kanji, KanjiExample, KanjiSource, Vocabulary, VocabularySource
 from app.services.importer import import_directory
 
 
@@ -67,6 +67,58 @@ def test_reimport_preserves_corrected_order(tmp_path, db_session):
     assert source.item_order == 7
     assert source.original_item_order == 1
     assert source.manually_reordered is True
+
+
+def test_reimport_reuses_canonical_identity_and_preserves_example_ids(tmp_path, db_session):
+    rows = dataset(tmp_path)
+    rows["books"].append({"id": "minna_2", "title": "Minna II"})
+    rows["chapters"].append({
+        "id": "minna_2_lesson_01", "book_id": "minna_2",
+        "chapter_number": 1, "title": "Food",
+    })
+    rows["kanji"].append({"id": "kanji_飯", "character": "飯"})
+    rows["kanji_sources"][0]["examples"].append(
+        {"word": "食事", "reading": "しょくじ", "meaning": "meal", "sort_order": 1}
+    )
+    rows["kanji_sources"].append({
+        "id": "source_kanji_000002", "kanji_id": "kanji_飯",
+        "book_id": "minna_2", "chapter_id": "minna_2_lesson_01",
+        "item_order": 1, "meaning_as_printed": "meal",
+        "onyomi_as_printed": [], "kunyomi_as_printed": [],
+        "examples": [{"word": "食べる", "reading": "たべる", "meaning": "eat"}],
+    })
+    for name, values in rows.items():
+        (tmp_path / f"{name}.json").write_text(json.dumps(values))
+    assert import_directory(db_session, tmp_path, dry_run=False)["summary"]["fatal_error"] is None
+
+    examples = db_session.query(KanjiExample).order_by(KanjiExample.id).all()
+    eating = [example for example in examples if (example.word, example.reading) == ("食べる", "たべる")]
+    assert len(eating) == 2
+    assert eating[0].canonical_id == eating[1].canonical_id
+    original_ids = {
+        (example.word, example.reading): example.id
+        for example in examples
+        if example.kanji_source.source_id == "source_kanji_000001"
+    }
+    eating[0].is_important = True
+    eating[0].knowledge_status = "known"
+    db_session.commit()
+
+    rows["kanji_sources"][0]["examples"] = [
+        {"word": "食事", "reading": "しょくじ", "meaning": "a meal", "sort_order": 0},
+        {"word": "食べる", "reading": "たべる", "meaning": "to consume", "sort_order": 1},
+    ]
+    (tmp_path / "kanji_sources.json").write_text(json.dumps(rows["kanji_sources"]))
+    assert import_directory(db_session, tmp_path, dry_run=False)["summary"]["fatal_error"] is None
+
+    current = db_session.query(KanjiExample).join(KanjiSource).filter(
+        KanjiSource.source_id == "source_kanji_000001"
+    ).all()
+    assert {(example.word, example.reading): example.id for example in current} == original_ids
+    corrected = next(example for example in current if example.word == "食べる")
+    assert corrected.meaning == "to consume"
+    assert corrected.is_important is True
+    assert corrected.knowledge_status == "known"
 
 
 def test_fatal_validation_rolls_back_everything(tmp_path, db_session):

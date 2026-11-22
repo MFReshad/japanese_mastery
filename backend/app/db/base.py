@@ -1,6 +1,7 @@
 from app.models.book import Book, Chapter
 from app.models.item import (
     Kanji,
+    CanonicalKanjiExample,
     KanjiExample,
     KanjiSource,
     Vocabulary,
@@ -20,6 +21,7 @@ __all__ = [
     "VocabularySource",
     "Kanji",
     "KanjiSource",
+    "CanonicalKanjiExample",
     "KanjiExample",
     "ItemProgress",
     "PracticeSession",

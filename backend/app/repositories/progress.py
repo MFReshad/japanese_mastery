@@ -13,7 +13,7 @@ def progress(db: Session = None):
         select(
             select(func.count()).select_from(Vocabulary).scalar_subquery(),
             select(func.count()).select_from(Kanji).scalar_subquery(),
-            select(func.count()).select_from(KanjiExample).scalar_subquery(),
+            select(func.count(func.distinct(KanjiExample.canonical_id))).scalar_subquery(),
             *[
                 func.count().filter(
                     and_(ItemProgress.item_type == kind, ItemProgress.attempts > 0)
@@ -124,12 +124,12 @@ def book_coverage(db: Session = None):
             func.count(KanjiExample.id).label("total"),
             func.count(KanjiExample.id).filter(KanjiExample.knowledge_status == "unknown").label("unknown"),
             func.count(KanjiExample.id).filter(KanjiExample.knowledge_status == "known").label("known"),
-            func.count(ItemProgress.id).filter(ItemProgress.attempts > 0).label("practiced"),
-            func.count(ItemProgress.id).filter(ItemProgress.status == "mastered").label("mastered"),
-            func.count(ItemProgress.id).filter(ItemProgress.status == "weak").label("weak"),
+            func.count(KanjiExample.id).filter(ItemProgress.attempts > 0).label("practiced"),
+            func.count(KanjiExample.id).filter(ItemProgress.status == "mastered").label("mastered"),
+            func.count(KanjiExample.id).filter(ItemProgress.status == "weak").label("weak"),
         )
         .join(KanjiExample, KanjiExample.kanji_source_id == KanjiSource.id)
-        .outerjoin(ItemProgress, and_(ItemProgress.item_type == "kanji_example", ItemProgress.item_id == KanjiExample.id))
+        .outerjoin(ItemProgress, and_(ItemProgress.item_type == "kanji_example", ItemProgress.item_id == KanjiExample.canonical_id))
         .where(KanjiSource.chapter_id.is_not(None))
         .group_by(KanjiSource.chapter_id)
     ).subquery()
@@ -137,8 +137,8 @@ def book_coverage(db: Session = None):
         select(
             KanjiSource.chapter_id.label("chapter_id"),
             KanjiSource.id.label("source_id"),
-            func.count(KanjiExample.id).label("total"),
-            func.count(ItemProgress.id)
+            func.count(func.distinct(KanjiExample.canonical_id)).label("total"),
+            func.count(func.distinct(KanjiExample.canonical_id))
             .filter(ItemProgress.status == "mastered")
             .label("mastered"),
         )
@@ -147,7 +147,7 @@ def book_coverage(db: Session = None):
             ItemProgress,
             and_(
                 ItemProgress.item_type == "kanji_example",
-                ItemProgress.item_id == KanjiExample.id,
+                ItemProgress.item_id == KanjiExample.canonical_id,
             ),
         )
         .where(KanjiSource.chapter_id.is_not(None))
@@ -285,7 +285,7 @@ def progress_items(book_id, material, status, chapter_id, search, page, page_siz
         ).select_from(KanjiExample).join(source, source.id == KanjiExample.kanji_source_id).join(
             Chapter, Chapter.id == source.chapter_id
         ).outerjoin(
-            progress_row, and_(progress_row.item_type == "kanji_example", progress_row.item_id == KanjiExample.id)
+            progress_row, and_(progress_row.item_type == "kanji_example", progress_row.item_id == KanjiExample.canonical_id)
         )
         conditions.append(source.book_id == book_id)
         search_columns = (KanjiExample.word, KanjiExample.reading, KanjiExample.meaning)

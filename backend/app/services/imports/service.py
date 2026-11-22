@@ -678,28 +678,39 @@ def _import_kanji_sources(
             by_source[row["id"]] = item
             examples_changed = True
         if examples_changed:
-            preferences = {
-                (example.word, example.reading, example.meaning): (
-                    example.is_important,
-                    example.knowledge_status,
+            # Keep source occurrence IDs (and their source-local marks) stable
+            # across import reordering and meaning corrections. Exact matches
+            # win; word/reading identity is the fallback for a corrected gloss.
+            available = list(item.examples)
+            retained = []
+            for values in examples:
+                match = next(
+                    (
+                        example
+                        for example in available
+                        if (example.word, example.reading, example.meaning)
+                        == (values["word"], values["reading"], values["meaning"])
+                    ),
+                    None,
+                ) or next(
+                    (
+                        example
+                        for example in available
+                        if (example.word, example.reading)
+                        == (values["word"], values["reading"])
+                    ),
+                    None,
                 )
-                for example in item.examples
-            }
-            item.examples.clear()
-            item.examples.extend(
-                KanjiExample(
-                    **example,
-                    is_important=preferences.get(
-                        (example["word"], example["reading"], example["meaning"]),
-                        (False, None),
-                    )[0],
-                    knowledge_status=preferences.get(
-                        (example["word"], example["reading"], example["meaning"]),
-                        (False, None),
-                    )[1],
-                )
-                for example in examples
-            )
+                if match is None:
+                    match = KanjiExample()
+                else:
+                    available.remove(match)
+                match.word = values["word"]
+                match.reading = values["reading"]
+                match.meaning = values["meaning"]
+                match.sort_order = values["sort_order"]
+                retained.append(match)
+            item.examples[:] = retained
         baseline = dict(item.imported_baseline or {})
         baseline.setdefault("_original_source", row)
         baseline["_source"] = row

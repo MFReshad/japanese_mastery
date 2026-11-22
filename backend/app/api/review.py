@@ -48,7 +48,7 @@ def review_items(
             stmt = stmt.where(or_(model.expression_as_printed.ilike(pattern), model.reading_as_printed.ilike(pattern), model.meaning_as_printed.ilike(pattern)))
         knowledge_col, important_col = model.knowledge_status, ItemProgress.is_starred
     else:
-        model, progress_id = KanjiExample, KanjiExample.id
+        model, progress_id = KanjiExample, KanjiExample.canonical_id
         stmt = select(
             model.id, KanjiSource.book_id, KanjiSource.chapter_id, model.word,
             model.reading, model.meaning, model.knowledge_status,

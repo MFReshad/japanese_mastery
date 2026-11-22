@@ -178,7 +178,7 @@ def example_word_questions(
         result.append(
             QuestionDraft(
                 "kanji_example",
-                example.id,
+                example.canonical_id,
                 source.id,
                 "important_kanji_word",
                 word,

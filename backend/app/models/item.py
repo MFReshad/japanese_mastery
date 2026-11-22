@@ -11,7 +11,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import event, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
+import unicodedata
 
 from app.db.session import Base
 from app.models.mixins import TimestampMixin
@@ -182,10 +185,28 @@ class KanjiSource(TimestampMixin, Base):
     )
 
 
+class CanonicalKanjiExample(TimestampMixin, Base):
+    __tablename__ = "canonical_kanji_examples"
+    __table_args__ = (
+        UniqueConstraint("normalized_word", "normalized_reading", name="uq_canonical_kanji_example_normalized"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    word: Mapped[str] = mapped_column(String(255), nullable=False)
+    reading: Mapped[str] = mapped_column(String(255), nullable=False)
+    normalized_word: Mapped[str] = mapped_column(String(255), nullable=False)
+    normalized_reading: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    sources: Mapped[list["KanjiExample"]] = relationship(back_populates="canonical")
+
+
 class KanjiExample(Base):
     __tablename__ = "kanji_examples"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    canonical_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_kanji_examples.id", ondelete="RESTRICT"), nullable=False
+    )
     kanji_source_id: Mapped[int] = mapped_column(
         ForeignKey("kanji_sources.id", ondelete="CASCADE"), nullable=False
     )
@@ -201,6 +222,7 @@ class KanjiExample(Base):
     )
 
     kanji_source: Mapped[KanjiSource] = relationship(back_populates="examples")
+    canonical: Mapped[CanonicalKanjiExample] = relationship(back_populates="sources")
 
 
 class SourceSuppression(Base):
@@ -268,3 +290,63 @@ Index(
     KanjiExample.__table__.c["sort_order"],
     unique=False,
 )
+Index("ix_kanji_examples_canonical_id", KanjiExample.__table__.c["canonical_id"], unique=False)
+
+
+@event.listens_for(Session, "before_flush")
+def _assign_canonical_kanji_examples(session, _flush_context, _instances):
+    candidates = [row for row in session.new.union(session.dirty) if isinstance(row, KanjiExample)]
+    if not candidates:
+        return
+    pending = {
+        (row.normalized_word, row.normalized_reading): row
+        for row in session.new
+        if isinstance(row, CanonicalKanjiExample)
+    }
+    for example in candidates:
+        normalized_word = " ".join(unicodedata.normalize("NFKC", example.word).strip().split())
+        normalized_reading = " ".join(unicodedata.normalize("NFKC", example.reading).strip().split())
+        if (
+            example.canonical is not None
+            and example.canonical.normalized_word == normalized_word
+            and example.canonical.normalized_reading == normalized_reading
+        ):
+            continue
+        key = (normalized_word, normalized_reading)
+        canonical = pending.get(key)
+        if canonical is None and session.get_bind().dialect.name == "postgresql":
+            canonical_id = session.execute(
+                pg_insert(CanonicalKanjiExample)
+                .values(
+                    word=example.word.strip(),
+                    reading=example.reading.strip(),
+                    normalized_word=normalized_word,
+                    normalized_reading=normalized_reading,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=["normalized_word", "normalized_reading"]
+                )
+                .returning(CanonicalKanjiExample.id)
+            ).scalar_one_or_none()
+            if canonical_id is None:
+                canonical_id = session.scalar(
+                    select(CanonicalKanjiExample.id).where(
+                        CanonicalKanjiExample.normalized_word == normalized_word,
+                        CanonicalKanjiExample.normalized_reading == normalized_reading,
+                    )
+                )
+            canonical = session.get(CanonicalKanjiExample, canonical_id)
+        canonical = canonical or session.scalar(
+            select(CanonicalKanjiExample).where(
+                CanonicalKanjiExample.normalized_word == normalized_word,
+                CanonicalKanjiExample.normalized_reading == normalized_reading,
+            )
+        )
+        if canonical is None:
+            canonical = CanonicalKanjiExample(
+                word=example.word.strip(), reading=example.reading.strip(),
+                normalized_word=normalized_word, normalized_reading=normalized_reading,
+            )
+            session.add(canonical)
+            pending[key] = canonical
+        example.canonical = canonical

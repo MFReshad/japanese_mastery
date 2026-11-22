@@ -256,18 +256,20 @@ def update_kanji_source(source_id: int, payload: KanjiSourceUpdate, db: Session 
             has_history = db.scalar(
                 select(ItemProgress.id).where(
                     ItemProgress.item_type == "kanji_example",
-                    ItemProgress.item_id == example.id,
+                    ItemProgress.item_id == example.canonical_id,
                     ItemProgress.attempts > 0,
                 ).limit(1)
             ) or db.scalar(
                 select(PracticeAnswer.id).where(
                     PracticeAnswer.item_type == "kanji_example",
-                    PracticeAnswer.item_id == example.id,
+                    PracticeAnswer.item_id == example.canonical_id,
+                    PracticeAnswer.source_entry_id == source.id,
                 ).limit(1)
             ) or db.scalar(
                 select(PracticeQuestion.id).where(
                     PracticeQuestion.item_type == "kanji_example",
-                    PracticeQuestion.item_id == example.id,
+                    PracticeQuestion.item_id == example.canonical_id,
+                    PracticeQuestion.source_entry_id == source.id,
                 ).limit(1)
             )
             if has_history:
@@ -352,6 +354,8 @@ def create_kanji_source(db: Session, data) -> KanjiSource:
                 reading=example.reading,
                 meaning=example.meaning,
                 sort_order=example.sort_order,
+                is_important=example.is_important,
+                knowledge_status=example.knowledge_status,
             )
         )
     return source

@@ -77,10 +77,10 @@ def kanji_strength_subquery():
     example_progress = aliased(ItemProgress)
     direct_attempts = func.coalesce(func.max(direct.attempts), 0)
     direct_status = func.coalesce(func.max(direct.status), "new")
-    total = func.count(KanjiExample.id)
-    practiced = func.count(KanjiExample.id).filter(example_progress.attempts > 0)
-    weak = func.count(KanjiExample.id).filter(and_(example_progress.attempts > 0, example_progress.status == "weak"))
-    mastered = func.count(KanjiExample.id).filter(and_(example_progress.attempts > 0, example_progress.status == "mastered"))
+    total = func.count(func.distinct(KanjiExample.canonical_id))
+    practiced = func.count(func.distinct(KanjiExample.canonical_id)).filter(example_progress.attempts > 0)
+    weak = func.count(func.distinct(KanjiExample.canonical_id)).filter(and_(example_progress.attempts > 0, example_progress.status == "weak"))
+    mastered = func.count(func.distinct(KanjiExample.canonical_id)).filter(and_(example_progress.attempts > 0, example_progress.status == "mastered"))
     status = status_expression(direct_attempts=direct_attempts, direct_status=direct_status, total=total, practiced=practiced, weak=weak, mastered=mastered)
     return (
         select(
@@ -97,7 +97,7 @@ def kanji_strength_subquery():
         )
         .outerjoin(direct, and_(direct.item_type == "kanji", direct.item_id == KanjiSource.kanji_id))
         .outerjoin(KanjiExample, KanjiExample.kanji_source_id == KanjiSource.id)
-        .outerjoin(example_progress, and_(example_progress.item_type == "kanji_example", example_progress.item_id == KanjiExample.id))
+        .outerjoin(example_progress, and_(example_progress.item_type == "kanji_example", example_progress.item_id == KanjiExample.canonical_id))
         .group_by(KanjiSource.id)
         .subquery()
     )

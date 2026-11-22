@@ -99,25 +99,25 @@ def start_practice(
             kanji = _eligible_sources(db, source_payload, "kanji")
             selected_conditions = set(payload.conditions)
             manual_knowledge = selected_conditions & {"known", "unknown"}
-            example_ids = {
-                example.id for source in kanji for example in source.examples
+            canonical_ids = {
+                example.canonical_id for source in kanji for example in source.examples
             }
             progress_by_example = {
                 progress.item_id: progress
                 for progress in db.scalars(
                     select(ItemProgress).where(
                         ItemProgress.item_type == "kanji_example",
-                        ItemProgress.item_id.in_(example_ids),
+                        ItemProgress.item_id.in_(canonical_ids),
                     )
                 )
-            } if example_ids else {}
+            } if canonical_ids else {}
             allowed_example_ids = {
                 example.id
                 for source in kanji
                 for example in source.examples
                 if _example_matches_filters(
                     example,
-                    progress_by_example.get(example.id),
+                    progress_by_example.get(example.canonical_id),
                     selected_conditions,
                     payload.mode,
                 )
@@ -138,6 +138,17 @@ def start_practice(
         else:
             kanji = _eligible_sources(db, payload, "kanji")
             drafts.extend(draft for source in kanji for draft in questions_from_kanji(source))
+    # One canonical example may occur in many selected books. Ask it once per
+    # session while retaining the first source occurrence for display/history.
+    seen_examples: set[int] = set()
+    deduplicated = []
+    for draft in drafts:
+        if draft.item_type == "kanji_example":
+            if draft.item_id in seen_examples:
+                continue
+            seen_examples.add(draft.item_id)
+        deduplicated.append(draft)
+    drafts = deduplicated
     if payload.mode == "starred_priority":
         random.shuffle(
             drafts
