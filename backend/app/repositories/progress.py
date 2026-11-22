@@ -1,6 +1,6 @@
 from __future__ import annotations
-from sqlalchemy import and_, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import String, and_, case, cast, func, literal, or_, select
+from sqlalchemy.orm import Session, aliased
 from app.models.book import Book, Chapter
 from app.models.item import Kanji, KanjiExample, KanjiSource, Vocabulary, VocabularySource
 from app.models.practice import ItemProgress
@@ -229,6 +229,8 @@ def book_coverage(db: Session = None):
                 chapter_id=chapter.id,
                 chapter_title=chapter.title,
                 chapter_number=chapter.chapter_number,
+                chapter_part=chapter.part,
+                chapter_sort_order=chapter.sort_order,
                 vocabulary_mastered_percent=round(
                     (vocab_mastered / vocab_total * 100) if vocab_total else 0, 1
                 ),
@@ -255,3 +257,74 @@ def book_coverage(db: Session = None):
             )
         )
     return rows
+
+
+def progress_items(book_id, material, status, chapter_id, search, page, page_size, db):
+    progress_row = aliased(ItemProgress)
+    conditions = []
+    if material == "vocabulary":
+        source = VocabularySource
+        item_status = case((func.coalesce(progress_row.attempts, 0) == 0, "new"), else_=progress_row.status)
+        stmt = select(
+            source.id, func.coalesce(source.source_id, cast(source.id, String)), source.expression_as_printed, source.reading_as_printed,
+            source.meaning_as_printed, Chapter.id, Chapter.chapter_number, Chapter.title,
+            Chapter.part, Chapter.sort_order, source.item_order, item_status,
+        ).select_from(source).join(Chapter, Chapter.id == source.chapter_id).outerjoin(
+            progress_row, and_(progress_row.item_type == "vocabulary", progress_row.item_id == source.vocabulary_id)
+        )
+        conditions.append(source.book_id == book_id)
+        search_columns = (source.expression_as_printed, source.reading_as_printed, source.meaning_as_printed)
+        study_kind = "vocabulary"
+    elif material == "kanji_examples":
+        source = KanjiSource
+        item_status = case((func.coalesce(progress_row.attempts, 0) == 0, "new"), else_=progress_row.status)
+        stmt = select(
+            KanjiExample.id, func.coalesce(source.source_id, cast(source.id, String)), KanjiExample.word, KanjiExample.reading,
+            KanjiExample.meaning, Chapter.id, Chapter.chapter_number, Chapter.title,
+            Chapter.part, Chapter.sort_order, KanjiExample.sort_order, item_status,
+        ).select_from(KanjiExample).join(source, source.id == KanjiExample.kanji_source_id).join(
+            Chapter, Chapter.id == source.chapter_id
+        ).outerjoin(
+            progress_row, and_(progress_row.item_type == "kanji_example", progress_row.item_id == KanjiExample.id)
+        )
+        conditions.append(source.book_id == book_id)
+        search_columns = (KanjiExample.word, KanjiExample.reading, KanjiExample.meaning)
+        study_kind = "kanji"
+    else:
+        source = KanjiSource
+        strength = kanji_strength_subquery()
+        item_status = strength.c.status
+        stmt = select(
+            source.id, func.coalesce(source.source_id, cast(source.id, String)), Kanji.character, literal(""),
+            source.meaning_as_printed, Chapter.id, Chapter.chapter_number, Chapter.title,
+            Chapter.part, Chapter.sort_order, source.item_order, item_status,
+        ).select_from(source).join(Kanji, Kanji.id == source.kanji_id).join(
+            Chapter, Chapter.id == source.chapter_id
+        ).join(strength, strength.c.source_id == source.id)
+        conditions.append(source.book_id == book_id)
+        search_columns = (Kanji.character, source.meaning_as_printed)
+        study_kind = "kanji"
+
+    if chapter_id is not None:
+        conditions.append(Chapter.id == chapter_id)
+    conditions.append(item_status == status)
+    term = search.strip()
+    if term:
+        pattern = f"%{term}%"
+        conditions.append(or_(*(column.ilike(pattern) for column in search_columns)))
+    filtered = stmt.where(*conditions)
+    count = db.scalar(select(func.count()).select_from(filtered.subquery())) or 0
+    rows = db.execute(
+        filtered.order_by(Chapter.sort_order, Chapter.chapter_number, source.item_order if material != "kanji_examples" else KanjiExample.sort_order)
+        .offset((page - 1) * page_size).limit(page_size)
+    )
+    items = []
+    for row in rows:
+        item_id, source_id, content, reading, meaning, row_chapter_id, number, title, part, _, _, row_status = row
+        items.append({
+            "id": item_id, "content": content, "reading": reading, "meaning": meaning,
+            "status": row_status, "chapter_id": row_chapter_id, "chapter_number": number,
+            "chapter_title": title, "chapter_part": part, "study_kind": study_kind,
+            "study_source_id": source_id or str(item_id),
+        })
+    return {"items": items, "total": count, "page": page, "page_size": page_size}

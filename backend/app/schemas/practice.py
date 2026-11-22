@@ -100,6 +100,8 @@ class CoverageChapter(OrmModel):
     chapter_id: int
     chapter_title: str
     chapter_number: int
+    chapter_part: int | str | None = None
+    chapter_sort_order: int = 0
     vocabulary_mastered_percent: float
     kanji_mastered_percent: float
     vocabulary_total: int = 0

@@ -11,3 +11,7 @@ def progress(db: Session = None):
 
 def book_coverage(db: Session = None):
     return lookup_cache.get_value("coverage", lambda: queries.book_coverage(db))
+
+
+def progress_items(book_id, material, status, chapter_id, search, page, page_size, db):
+    return queries.progress_items(book_id, material, status, chapter_id, search, page, page_size, db)
