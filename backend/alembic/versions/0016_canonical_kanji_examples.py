@@ -60,25 +60,44 @@ def upgrade() -> None:
     op.add_column("kanji_examples", sa.Column("canonical_id", sa.Integer(), nullable=True))
     bind = op.get_bind()
     examples = bind.execute(sa.text("SELECT id, word, reading FROM kanji_examples ORDER BY id")).mappings().all()
-    canonical_by_key = {}
-    old_to_canonical = {}
+    canonical_values = {}
     for example in examples:
         key = (_normalize(example["word"]), _normalize(example["reading"]))
-        canonical_id = canonical_by_key.get(key)
-        if canonical_id is None:
-            canonical_id = bind.execute(
-                sa.text("""
-                    INSERT INTO canonical_kanji_examples
-                        (word, reading, normalized_word, normalized_reading)
-                    VALUES (:word, :reading, :normalized_word, :normalized_reading)
-                    RETURNING id
-                """),
-                {"word": example["word"].strip(), "reading": example["reading"].strip(),
-                 "normalized_word": key[0], "normalized_reading": key[1]},
-            ).scalar_one()
-            canonical_by_key[key] = canonical_id
-        old_to_canonical[example["id"]] = canonical_id
-        bind.execute(sa.text("UPDATE kanji_examples SET canonical_id = :canonical WHERE id = :old"), {"canonical": canonical_id, "old": example["id"]})
+        canonical_values.setdefault(key, {
+            "word": example["word"].strip(),
+            "reading": example["reading"].strip(),
+            "normalized_word": key[0],
+            "normalized_reading": key[1],
+        })
+    if canonical_values:
+        bind.execute(
+            sa.text("""
+                INSERT INTO canonical_kanji_examples
+                    (word, reading, normalized_word, normalized_reading)
+                VALUES (:word, :reading, :normalized_word, :normalized_reading)
+            """),
+            list(canonical_values.values()),
+        )
+    canonical_by_key = {
+        (row["normalized_word"], row["normalized_reading"]): row["id"]
+        for row in bind.execute(sa.text(
+            "SELECT id, normalized_word, normalized_reading FROM canonical_kanji_examples"
+        )).mappings()
+    }
+    old_to_canonical = {
+        example["id"]: canonical_by_key[
+            (_normalize(example["word"]), _normalize(example["reading"]))
+        ]
+        for example in examples
+    }
+    if old_to_canonical:
+        bind.execute(
+            sa.text("UPDATE kanji_examples SET canonical_id = :canonical WHERE id = :old"),
+            [
+                {"old": old_id, "canonical": canonical_id}
+                for old_id, canonical_id in old_to_canonical.items()
+            ],
+        )
 
     progress_rows = bind.execute(sa.text("SELECT * FROM item_progress WHERE item_type = 'kanji_example' ORDER BY id")).mappings().all()
     answers = bind.execute(sa.text("SELECT id, item_id, result, answered_at FROM practice_answers WHERE item_type = 'kanji_example' ORDER BY answered_at, id")).mappings().all()
