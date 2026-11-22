@@ -57,7 +57,7 @@ export default function ProgressPage() {
           <div className="mt-5 grid grid-cols-2 gap-2"><Ratio label="Touched" value={stats.practiced} total={stats.practiceTotal} tone="neutral" /><Ratio label="Never touched" value={stats.neverTouched} total={stats.practiceTotal} tone="neutral" /><Ratio label="Weak" value={stats.weak} total={stats.practiceTotal} tone="weak" /><Ratio label="Mastered" value={stats.mastered} total={stats.practiceTotal} tone="mastered" /></div>
           <div className="mt-5 h-3 overflow-hidden rounded-full bg-stone-100"><div className="h-full bg-moss" style={{width: `${stats.masteryPercent}%`}} /></div>
           <p className="mt-2 text-xs text-stone-500">Mastery: {stats.mastered}/{stats.practiceTotal} · {stats.masteryPercent}%</p>
-          {material === "kanji" && <p className="mt-3 rounded-lg bg-stone-50 p-3 text-xs text-stone-600">Kanji strength combines direct character practice with example words. A kanji is weak when it is directly weak or <strong>more than half of all its examples are weak</strong>.</p>}
+          {material === "kanji" && <p className="mt-3 rounded-lg bg-stone-50 p-3 text-xs text-stone-600">Main kanji strength comes from example words. It becomes Weak when at least two examples are practiced and <strong>more than half of the practiced examples are weak</strong>. Direct Practice remains separate.</p>}
           {material === "kanji_examples" && <p className="mt-3 rounded-lg bg-stone-50 p-3 text-xs text-stone-600"><strong>{stats.exampleSetsMastered}/{stats.kanjiTotal} kanji</strong> have every example word mastered.</p>}
         </div>
       </div>

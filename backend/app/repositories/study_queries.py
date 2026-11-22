@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.models.book import Book, Chapter
 from app.models.item import Kanji, KanjiExample, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
-from app.services.kanji_strength import effective_kanji_status
+from app.services.kanji_strength import calculate_kanji_strength
 
 
 def _model(kind: str):
@@ -251,13 +251,15 @@ def study_detail(kind: str, source_id: str, db: Session = None):
         else "new"
         for example in source.examples
     ]
+    strength = calculate_kanji_strength(
+        direct_status=direct_progress.status if direct_progress else None,
+        direct_attempts=direct_progress.attempts if direct_progress else 0,
+        example_statuses=example_statuses,
+    )
     return {
         **common,
-        "practice_status": effective_kanji_status(
-            direct_progress.status if direct_progress else None,
-            direct_progress.attempts if direct_progress else 0,
-            example_statuses,
-        ),
+        "practice_status": strength.status,
+        "kanji_strength": strength.as_dict(),
         "example_status_counts": {
             status: example_statuses.count(status)
             for status in ("new", "learning", "weak", "mastered")

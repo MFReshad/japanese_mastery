@@ -110,10 +110,11 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
         </div>
       </div>
       {kind === "kanji" && <p className={`mt-5 inline-block border-l-2 pl-3 text-sm ${detail.uncertain ? "border-persimmon text-persimmon" : "border-stone-300 text-stone-500"}`}>{detail.uncertain ? "Uncertain source transcription" : "No uncertainty flagged"}</p>}
-      {kind === "kanji" && detail.practice_status && detail.example_status_counts && <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-3">
-        <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">Effective kanji strength</span><StrengthStatus status={detail.practice_status} /></div>
-        <p className="mt-2 text-xs text-stone-600">From direct kanji practice and {Object.values(detail.example_status_counts).reduce((sum, count) => sum + count, 0)} examples: {detail.example_status_counts.weak} weak · {detail.example_status_counts.learning} learning · {detail.example_status_counts.mastered} mastered · {detail.example_status_counts.new} new.</p>
-        <p className="mt-1 text-xs text-stone-500">A kanji is weak when it is directly weak or more than half of all its examples are weak.</p>
+      {kind === "kanji" && detail.kanji_strength && <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-3">
+        <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">Example-based kanji strength</span><StrengthStatus status={detail.kanji_strength.status} /></div>
+        <p className="mt-2 text-xs text-stone-600">{detail.kanji_strength.practiced_examples}/{detail.kanji_strength.total_examples} practiced · {detail.kanji_strength.weak_examples} weak · {detail.kanji_strength.mastered_examples} mastered · {detail.kanji_strength.unpracticed_examples} unpracticed · {detail.kanji_strength.weakness_percent}% weak among practiced.</p>
+        <p className="mt-1 text-xs text-stone-500">This reflects example-word performance, not guaranteed knowledge of every reading or meaning.</p>
+        {detail.kanji_strength.direct_attempts > 0 && <p className="mt-2 border-t border-stone-200 pt-2 text-xs text-stone-500">Direct Practice: <span className="font-semibold capitalize">{detail.kanji_strength.direct_status}</span> · {detail.kanji_strength.direct_attempts} attempts</p>}
       </div>}
     </header>
 

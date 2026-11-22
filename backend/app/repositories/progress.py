@@ -1,10 +1,11 @@
 from __future__ import annotations
-from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import Session
 from app.models.book import Book, Chapter
 from app.models.item import Kanji, KanjiExample, KanjiSource, Vocabulary, VocabularySource
 from app.models.practice import ItemProgress
 from app.schemas.practice import CoverageChapter, ProgressRead
+from app.services.kanji_strength import kanji_strength_subquery
 
 
 def progress(db: Session = None):
@@ -74,60 +75,15 @@ def book_coverage(db: Session = None):
     vocabulary = coverage_counts(
         VocabularySource, "vocabulary", VocabularySource.vocabulary_id
     )
-    direct_kanji_progress = aliased(ItemProgress)
-    example_progress = aliased(ItemProgress)
-    direct_attempts = func.coalesce(func.max(direct_kanji_progress.attempts), 0)
-    direct_is_weak = func.coalesce(func.max(case((direct_kanji_progress.status == "weak", 1), else_=0)), 0)
-    direct_is_mastered = func.coalesce(func.max(case((direct_kanji_progress.status == "mastered", 1), else_=0)), 0)
-    example_total = func.count(KanjiExample.id)
-    example_practiced = func.count(KanjiExample.id).filter(example_progress.attempts > 0)
-    example_weak = func.count(KanjiExample.id).filter(
-        and_(example_progress.attempts > 0, example_progress.status == "weak")
-    )
-    example_mastered = func.count(KanjiExample.id).filter(
-        and_(example_progress.attempts > 0, example_progress.status == "mastered")
-    )
-    effective_status = case(
-        (
-            or_(
-                and_(direct_attempts > 0, direct_is_weak == 1),
-                and_(example_total > 0, example_weak * 2 > example_total),
-            ),
-            "weak",
-        ),
-        (
-            or_(
-                and_(direct_attempts > 0, direct_is_mastered == 1),
-                and_(example_total > 0, example_mastered == example_total),
-            ),
-            "mastered",
-        ),
-        (or_(direct_attempts > 0, example_practiced > 0), "learning"),
-        else_="new",
-    )
+    strength = kanji_strength_subquery()
     kanji_effective_rows = (
         select(
             KanjiSource.chapter_id.label("chapter_id"),
             KanjiSource.id.label("source_id"),
-            effective_status.label("status"),
+            strength.c.status,
         )
-        .outerjoin(
-            direct_kanji_progress,
-            and_(
-                direct_kanji_progress.item_type == "kanji",
-                direct_kanji_progress.item_id == KanjiSource.kanji_id,
-            ),
-        )
-        .outerjoin(KanjiExample, KanjiExample.kanji_source_id == KanjiSource.id)
-        .outerjoin(
-            example_progress,
-            and_(
-                example_progress.item_type == "kanji_example",
-                example_progress.item_id == KanjiExample.id,
-            ),
-        )
+        .join(strength, strength.c.source_id == KanjiSource.id)
         .where(KanjiSource.chapter_id.is_not(None))
-        .group_by(KanjiSource.chapter_id, KanjiSource.id)
     ).subquery()
     kanji = (
         select(

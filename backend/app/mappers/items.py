@@ -31,7 +31,7 @@ def vocab_out(source: VocabularySource, status: str = "new") -> VocabularySource
     )
 
 
-def kanji_out(source: KanjiSource, status: str = "new") -> KanjiSourceRead:
+def kanji_out(source: KanjiSource, status: str = "new", strength: dict | None = None) -> KanjiSourceRead:
     return KanjiSourceRead.model_validate(
         {
             "id": source.id,
@@ -56,5 +56,6 @@ def kanji_out(source: KanjiSource, status: str = "new") -> KanjiSourceRead:
                 KanjiExampleIn.model_validate(example) for example in source.examples
             ],
             "status": status,
+            **({key: value for key, value in (strength or {}).items() if key != "source_id"}),
         }
     )

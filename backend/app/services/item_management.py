@@ -12,7 +12,7 @@ from app.models.item import (
     Vocabulary,
     VocabularySource,
 )
-from app.models.practice import ItemProgress
+from app.models.practice import ItemProgress, PracticeAnswer, PracticeQuestion
 from app.repositories.items import (
     get_or_create_vocabulary,
     get_or_create_kanji,
@@ -28,6 +28,7 @@ from app.schemas.items import (
 )
 from app.services.lookup_cache import lookup_cache
 from app.services.integrity import validate_ownership, meaning_fields
+from app.services.kanji_strength import kanji_strength_subquery
 
 
 def list_vocabulary(db: Session, offset: int = 0, limit: int = 100):
@@ -164,21 +165,15 @@ def list_kanji_sources(
     if limit is not None or (book_id is None and chapter_id is None):
         stmt = stmt.offset(offset).limit(limit or 100)
     sources = db.scalars(stmt).all()
-    item_ids = {source.kanji_id for source in sources}
-    statuses = (
-        dict(
-            db.execute(
-                select(ItemProgress.item_id, ItemProgress.status).where(
-                    ItemProgress.item_type == "kanji",
-                    ItemProgress.item_id.in_(item_ids),
-                )
-            ).all()
-        )
-        if item_ids
-        else {}
-    )
+    source_ids = {source.id for source in sources}
+    strength = kanji_strength_subquery()
+    strengths = {
+        row.source_id: dict(row._mapping)
+        for row in db.execute(select(strength).where(strength.c.source_id.in_(source_ids)))
+    } if source_ids else {}
     return [
-        kanji_out(source, statuses.get(source.kanji_id, "new")) for source in sources
+        kanji_out(source, strengths.get(source.id, {}).get("status", "new"), strengths.get(source.id))
+        for source in sources
     ]
 
 
@@ -192,7 +187,8 @@ def add_kanji_source(payload: KanjiSourceCreate, db: Session = None):
         .options(selectinload(KanjiSource.kanji), selectinload(KanjiSource.examples))
         .where(KanjiSource.id == source.id)
     )
-    return kanji_out(source, _status(db, "kanji", source.kanji_id))
+    strength = _kanji_strength(db, source.id)
+    return kanji_out(source, strength["status"], strength)
 
 
 def update_kanji_source(source_id: int, payload: KanjiSourceUpdate, db: Session = None):
@@ -233,32 +229,57 @@ def update_kanji_source(source_id: int, payload: KanjiSourceUpdate, db: Session 
     for key, value in changes.items():
         setattr(source, key, value)
     if examples is not None:
-        important = {
-            (example.word, example.reading, example.meaning): example.is_important
-            for example in source.examples
-        }
-        knowledge = {
-            (example.word, example.reading, example.meaning): example.knowledge_status
-            for example in source.examples
-        }
-        source.examples.clear()
-        source.examples.extend(
-            KanjiExample(
-                word=example["word"],
-                reading=example["reading"],
-                meaning=example["meaning"],
-                sort_order=example.get("sort_order", 0),
-                is_important=example.get("is_important", False)
-                or important.get((example["word"], example["reading"], example["meaning"]), False),
-                knowledge_status=example.get("knowledge_status")
-                or knowledge.get((example["word"], example["reading"], example["meaning"])),
+        existing = {example.id: example for example in source.examples}
+        exact = {(example.word, example.reading, example.meaning): example for example in source.examples}
+        retained: set[int] = set()
+        for position, data in enumerate(examples):
+            example_id = data.get("id")
+            example = existing.get(example_id) if example_id is not None else exact.get((data["word"], data["reading"], data["meaning"]))
+            if example_id is not None and example is None:
+                raise InvalidOperation("Example ID does not belong to this kanji source")
+            if example is not None and example.id in retained:
+                raise InvalidOperation("The same example cannot appear twice")
+            if example is None:
+                example = KanjiExample(kanji_source_id=source.id)
+                db.add(example)
+                source.examples.append(example)
+            example.word = data["word"]
+            example.reading = data["reading"]
+            example.meaning = data["meaning"]
+            example.sort_order = data.get("sort_order", position)
+            example.is_important = data.get("is_important", example.is_important)
+            example.knowledge_status = data.get("knowledge_status", example.knowledge_status)
+            db.flush()
+            retained.add(example.id)
+        removed = [example for example in existing.values() if example.id not in retained]
+        for example in removed:
+            has_history = db.scalar(
+                select(ItemProgress.id).where(
+                    ItemProgress.item_type == "kanji_example",
+                    ItemProgress.item_id == example.id,
+                    ItemProgress.attempts > 0,
+                ).limit(1)
+            ) or db.scalar(
+                select(PracticeAnswer.id).where(
+                    PracticeAnswer.item_type == "kanji_example",
+                    PracticeAnswer.item_id == example.id,
+                ).limit(1)
+            ) or db.scalar(
+                select(PracticeQuestion.id).where(
+                    PracticeQuestion.item_type == "kanji_example",
+                    PracticeQuestion.item_id == example.id,
+                ).limit(1)
             )
-            for example in examples
-        )
+            if has_history:
+                raise InvalidOperation(
+                    f"Cannot remove practiced example '{example.word}'. Its history must be preserved."
+                )
+            db.delete(example)
     db.commit()
     lookup_cache.invalidate_progress()
     db.refresh(source)
-    return kanji_out(source, _status(db, "kanji", source.kanji_id))
+    strength = _kanji_strength(db, source.id)
+    return kanji_out(source, strength["status"], strength)
 
 
 def create_vocabulary_source(db: Session, data) -> VocabularySource:
@@ -345,6 +366,12 @@ def _status(db, kind, item_id):
         )
         or "new"
     )
+
+
+def _kanji_strength(db, source_id: int) -> dict:
+    strength = kanji_strength_subquery()
+    row = db.execute(select(strength).where(strength.c.source_id == source_id)).one()
+    return dict(row._mapping)
 
 
 def delete_kanji_source(source_id: int, db: Session):

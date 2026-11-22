@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, aliased, selectinload
 from app.models.book import Chapter
 from app.models.item import Kanji, KanjiExample, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
+from app.services.kanji_strength import kanji_strength_subquery
 
 
 def library_items(
@@ -56,75 +57,8 @@ def library_items(
     progress_id = model.vocabulary_id if kind == "vocabulary" else model.kanji_id
     direct_progress = aliased(ItemProgress)
     if kind == "kanji":
-        example_progress = aliased(ItemProgress)
-        example_total = (
-            select(func.count(KanjiExample.id))
-            .where(KanjiExample.kanji_source_id == model.id)
-            .correlate(model)
-            .scalar_subquery()
-        )
-        example_practiced = (
-            select(func.count(KanjiExample.id))
-            .outerjoin(example_progress, and_(
-                example_progress.item_type == "kanji_example",
-                example_progress.item_id == KanjiExample.id,
-            ))
-            .where(
-                KanjiExample.kanji_source_id == model.id,
-                example_progress.attempts > 0,
-            )
-            .correlate(model)
-            .scalar_subquery()
-        )
-        example_weak = (
-            select(func.count(KanjiExample.id))
-            .outerjoin(example_progress, and_(
-                example_progress.item_type == "kanji_example",
-                example_progress.item_id == KanjiExample.id,
-            ))
-            .where(
-                KanjiExample.kanji_source_id == model.id,
-                example_progress.attempts > 0,
-                example_progress.status == "weak",
-            )
-            .correlate(model)
-            .scalar_subquery()
-        )
-        example_mastered = (
-            select(func.count(KanjiExample.id))
-            .outerjoin(example_progress, and_(
-                example_progress.item_type == "kanji_example",
-                example_progress.item_id == KanjiExample.id,
-            ))
-            .where(
-                KanjiExample.kanji_source_id == model.id,
-                example_progress.attempts > 0,
-                example_progress.status == "mastered",
-            )
-            .correlate(model)
-            .scalar_subquery()
-        )
-        item_status_expression = case(
-            (
-                or_(
-                    and_(direct_progress.attempts > 0, direct_progress.status == "weak"),
-                    and_(example_total > 0, example_weak * 2 > example_total),
-                ),
-                "weak",
-            ),
-            (
-                or_(
-                    and_(direct_progress.attempts > 0, direct_progress.status == "mastered"),
-                    and_(example_total > 0, example_mastered == example_total),
-                ),
-                "mastered",
-            ),
-            (
-                or_(direct_progress.attempts > 0, example_practiced > 0),
-                "learning",
-            ),
-            else_="new",
-        )
+        strength = kanji_strength_subquery()
+        item_status_expression = strength.c.status
     else:
         item_status_expression = case(
             (func.coalesce(direct_progress.attempts, 0) == 0, "new"),
@@ -143,12 +77,19 @@ def library_items(
     if kind == "vocabulary":
         fields += [model.expression_as_printed, model.reading_as_printed]
     else:
-        fields += [Kanji.character, model.onyomi_as_printed, model.kunyomi_as_printed]
+        fields += [
+            Kanji.character, model.onyomi_as_printed, model.kunyomi_as_printed,
+            strength.c.total_examples, strength.c.practiced_examples,
+            strength.c.weak_examples, strength.c.mastered_examples,
+            strength.c.unpracticed_examples, strength.c.weakness_percent,
+            strength.c.direct_status,
+            strength.c.direct_attempts,
+        ]
     fields.append(progress_id.label("canonical_id"))
     fields.append(func.count().over().label("total"))
     stmt = select(*fields).select_from(model)
     if kind == "kanji":
-        stmt = stmt.join(Kanji, Kanji.id == model.kanji_id)
+        stmt = stmt.join(Kanji, Kanji.id == model.kanji_id).join(strength, strength.c.source_id == model.id)
     stmt = stmt.outerjoin(
         direct_progress,
         and_(direct_progress.item_type == kind, direct_progress.item_id == progress_id),
@@ -196,7 +137,11 @@ def library_items(
             item.update(expression_as_printed=detail[0], reading_as_printed=detail[1])
         else:
             item.update(
-                character=detail[0], onyomi=detail[1] or [], kunyomi=detail[2] or []
+                character=detail[0], onyomi=detail[1] or [], kunyomi=detail[2] or [],
+                total_examples=detail[3], practiced_examples=detail[4],
+                weak_examples=detail[5], mastered_examples=detail[6],
+                unpracticed_examples=detail[7], weakness_percent=float(detail[8]),
+                direct_status=detail[9], direct_attempts=detail[10],
             )
         items.append(item)
     if kind == "kanji" and term and items:
@@ -226,8 +171,10 @@ def library_items(
             item["matching_examples"] = examples_by_source[item["id"]]
     if not items:
         count_stmt = select(func.count()).select_from(model)
-        if kind == "kanji" and term:
-            count_stmt = count_stmt.join(Kanji, Kanji.id == model.kanji_id)
+        if kind == "kanji":
+            count_stmt = count_stmt.join(strength, strength.c.source_id == model.id)
+            if term:
+                count_stmt = count_stmt.join(Kanji, Kanji.id == model.kanji_id)
         count_stmt = count_stmt.outerjoin(
             direct_progress,
             and_(direct_progress.item_type == kind, direct_progress.item_id == progress_id),

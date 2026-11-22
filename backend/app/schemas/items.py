@@ -116,3 +116,11 @@ class KanjiSourceRead(Timestamped):
     extraction_batch: str | None = None
     examples: list[KanjiExampleIn] = []
     status: str = "new"
+    total_examples: int = 0
+    practiced_examples: int = 0
+    weak_examples: int = 0
+    mastered_examples: int = 0
+    unpracticed_examples: int = 0
+    weakness_percent: float = 0
+    direct_status: str = "new"
+    direct_attempts: int = 0

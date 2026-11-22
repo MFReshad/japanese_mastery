@@ -9,6 +9,7 @@ from app.models.book import Chapter
 from app.models.item import KanjiExample, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
 from app.schemas.practice import PracticeStartRequest
+from app.services.kanji_strength import kanji_strength_subquery
 
 
 def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str):
@@ -45,11 +46,20 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
         stmt = stmt.where(model.item_order <= payload.order_end)
     conditions = set(payload.conditions)
     automatic_conditions = conditions - {"known", "unknown"}
+    status_column = ItemProgress.status
+    practiced_condition = ItemProgress.attempts > 0
+    new_condition = or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)
     if payload.mode != "random" or automatic_conditions:
         stmt = stmt.outerjoin(
             ItemProgress,
             and_(ItemProgress.item_type == item_type, ItemProgress.item_id == item_id),
         )
+        if item_type == "kanji":
+            strength = kanji_strength_subquery()
+            stmt = stmt.join(strength, strength.c.source_id == model.id)
+            status_column = strength.c.status
+            practiced_condition = strength.c.status != "new"
+            new_condition = strength.c.status == "new"
     if conditions:
         clauses = []
         knowledge_conditions = conditions & {"known", "unknown"}
@@ -74,21 +84,19 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
             "mastered",
         }:
             if condition == "never_practiced":
-                progress_clauses.append(
-                    or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)
-                )
+                progress_clauses.append(new_condition)
             elif condition == "wrong":
                 progress_clauses.append(
                     or_(
-                        ItemProgress.status == "weak",
+                        status_column == "weak",
                         ItemProgress.last_result == "wrong",
                     )
                 )
             else:
                 progress_clauses.append(
                     and_(
-                        ItemProgress.attempts > 0,
-                        ItemProgress.status == condition,
+                        practiced_condition,
+                        status_column == condition,
                     )
                 )
         if progress_clauses:
@@ -107,21 +115,18 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
         stmt = stmt.where(and_(*clauses))
     elif payload.mode != "random":
         if payload.mode == "never_practiced":
-            stmt = stmt.where(
-                or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)
-            )
+            stmt = stmt.where(new_condition)
         elif payload.mode == "weak":
-            stmt = stmt.where(ItemProgress.status == "weak")
+            stmt = stmt.where(status_column == "weak")
         elif payload.mode == "wrong":
             stmt = stmt.where(
-                or_(ItemProgress.status == "weak", ItemProgress.last_result == "wrong")
+                or_(status_column == "weak", ItemProgress.last_result == "wrong")
             )
         elif payload.mode == "mastery_review":
             stmt = stmt.where(
                 or_(
-                    ItemProgress.id.is_(None),
-                    ItemProgress.attempts == 0,
-                    ItemProgress.status != "mastered",
+                    new_condition,
+                    status_column != "mastered",
                 )
             )
         elif payload.mode in ("starred", "starred_priority"):
@@ -130,10 +135,10 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
         if payload.mode == "starred_priority":
             stmt = stmt.order_by(
                 case(
-                    (ItemProgress.status == "weak", 0),
-                    (ItemProgress.status == "learning", 1),
-                    (ItemProgress.status == "new", 2),
-                    (ItemProgress.status == "mastered", 3),
+                    (status_column == "weak", 0),
+                    (status_column == "learning", 1),
+                    (status_column == "new", 2),
+                    (status_column == "mastered", 3),
                     else_=4,
                 ),
                 model.book_id,
@@ -148,10 +153,10 @@ def _eligible_sources(db: Session, payload: PracticeStartRequest, item_type: str
         if payload.mode == "starred_priority":
             stmt = stmt.order_by(
                 case(
-                    (ItemProgress.status == "weak", 0),
-                    (ItemProgress.status == "learning", 1),
-                    (ItemProgress.status == "new", 2),
-                    (ItemProgress.status == "mastered", 3),
+                    (status_column == "weak", 0),
+                    (status_column == "learning", 1),
+                    (status_column == "new", 2),
+                    (status_column == "mastered", 3),
                     else_=4,
                 ),
                 model.book_id,
