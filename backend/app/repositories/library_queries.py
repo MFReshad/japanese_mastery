@@ -1,6 +1,6 @@
 from __future__ import annotations
 from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, selectinload
 from app.models.book import Chapter
 from app.models.item import Kanji, KanjiExample, KanjiSource, VocabularySource
 from app.models.practice import ItemProgress
@@ -54,6 +54,82 @@ def library_items(
                 )
             )
     progress_id = model.vocabulary_id if kind == "vocabulary" else model.kanji_id
+    direct_progress = aliased(ItemProgress)
+    if kind == "kanji":
+        example_progress = aliased(ItemProgress)
+        example_total = (
+            select(func.count(KanjiExample.id))
+            .where(KanjiExample.kanji_source_id == model.id)
+            .correlate(model)
+            .scalar_subquery()
+        )
+        example_practiced = (
+            select(func.count(KanjiExample.id))
+            .outerjoin(example_progress, and_(
+                example_progress.item_type == "kanji_example",
+                example_progress.item_id == KanjiExample.id,
+            ))
+            .where(
+                KanjiExample.kanji_source_id == model.id,
+                example_progress.attempts > 0,
+            )
+            .correlate(model)
+            .scalar_subquery()
+        )
+        example_weak = (
+            select(func.count(KanjiExample.id))
+            .outerjoin(example_progress, and_(
+                example_progress.item_type == "kanji_example",
+                example_progress.item_id == KanjiExample.id,
+            ))
+            .where(
+                KanjiExample.kanji_source_id == model.id,
+                example_progress.attempts > 0,
+                example_progress.status == "weak",
+            )
+            .correlate(model)
+            .scalar_subquery()
+        )
+        example_mastered = (
+            select(func.count(KanjiExample.id))
+            .outerjoin(example_progress, and_(
+                example_progress.item_type == "kanji_example",
+                example_progress.item_id == KanjiExample.id,
+            ))
+            .where(
+                KanjiExample.kanji_source_id == model.id,
+                example_progress.attempts > 0,
+                example_progress.status == "mastered",
+            )
+            .correlate(model)
+            .scalar_subquery()
+        )
+        item_status_expression = case(
+            (
+                or_(
+                    and_(direct_progress.attempts > 0, direct_progress.status == "weak"),
+                    and_(example_total > 0, example_weak * 2 > example_total),
+                ),
+                "weak",
+            ),
+            (
+                or_(
+                    and_(direct_progress.attempts > 0, direct_progress.status == "mastered"),
+                    and_(example_total > 0, example_mastered == example_total),
+                ),
+                "mastered",
+            ),
+            (
+                or_(direct_progress.attempts > 0, example_practiced > 0),
+                "learning",
+            ),
+            else_="new",
+        )
+    else:
+        item_status_expression = case(
+            (func.coalesce(direct_progress.attempts, 0) == 0, "new"),
+            else_=direct_progress.status,
+        )
     fields = [
         model.id,
         model.source_id,
@@ -61,11 +137,8 @@ def library_items(
         model.book_id,
         model.chapter_id,
         model.meaning_as_printed,
-        case(
-            (func.coalesce(ItemProgress.attempts, 0) == 0, "new"),
-            else_=ItemProgress.status,
-        ),
-        func.coalesce(ItemProgress.is_starred, False),
+        item_status_expression,
+        func.coalesce(direct_progress.is_starred, False),
     ]
     if kind == "vocabulary":
         fields += [model.expression_as_printed, model.reading_as_printed]
@@ -77,18 +150,16 @@ def library_items(
     if kind == "kanji":
         stmt = stmt.join(Kanji, Kanji.id == model.kanji_id)
     stmt = stmt.outerjoin(
-        ItemProgress,
-        and_(ItemProgress.item_type == kind, ItemProgress.item_id == progress_id),
+        direct_progress,
+        and_(direct_progress.item_type == kind, direct_progress.item_id == progress_id),
     ).where(*conditions)
     if status == "starred":
-        stmt = stmt.where(ItemProgress.is_starred.is_(True))
+        stmt = stmt.where(direct_progress.is_starred.is_(True))
     elif status != "all":
         if status == "new":
-            stmt = stmt.where(
-                or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)
-            )
+            stmt = stmt.where(item_status_expression == "new")
         else:
-            stmt = stmt.where(ItemProgress.status == status, ItemProgress.attempts > 0)
+            stmt = stmt.where(item_status_expression == status)
     stmt = (
         stmt.order_by(model.book_id, model.chapter_id, model.item_order, model.id)
         .offset((page - 1) * page_size)
@@ -158,20 +229,16 @@ def library_items(
         if kind == "kanji" and term:
             count_stmt = count_stmt.join(Kanji, Kanji.id == model.kanji_id)
         count_stmt = count_stmt.outerjoin(
-            ItemProgress,
-            and_(ItemProgress.item_type == kind, ItemProgress.item_id == progress_id),
+            direct_progress,
+            and_(direct_progress.item_type == kind, direct_progress.item_id == progress_id),
         )
         if status == "starred":
-            count_stmt = count_stmt.where(ItemProgress.is_starred.is_(True))
+            count_stmt = count_stmt.where(direct_progress.is_starred.is_(True))
         elif status != "all":
             if status == "new":
-                count_stmt = count_stmt.where(
-                    or_(ItemProgress.id.is_(None), ItemProgress.attempts == 0)
-                )
+                count_stmt = count_stmt.where(item_status_expression == "new")
             else:
-                count_stmt = count_stmt.where(
-                    ItemProgress.status == status, ItemProgress.attempts > 0
-                )
+                count_stmt = count_stmt.where(item_status_expression == status)
         total = db.scalar(count_stmt.where(*conditions)) or 0
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 

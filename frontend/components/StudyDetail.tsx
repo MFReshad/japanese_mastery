@@ -110,6 +110,11 @@ export function StudyDetailView({ kind, sourceId }: { kind: StudyKind; sourceId:
         </div>
       </div>
       {kind === "kanji" && <p className={`mt-5 inline-block border-l-2 pl-3 text-sm ${detail.uncertain ? "border-persimmon text-persimmon" : "border-stone-300 text-stone-500"}`}>{detail.uncertain ? "Uncertain source transcription" : "No uncertainty flagged"}</p>}
+      {kind === "kanji" && detail.practice_status && detail.example_status_counts && <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-3">
+        <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">Effective kanji strength</span><StrengthStatus status={detail.practice_status} /></div>
+        <p className="mt-2 text-xs text-stone-600">From direct kanji practice and {Object.values(detail.example_status_counts).reduce((sum, count) => sum + count, 0)} examples: {detail.example_status_counts.weak} weak · {detail.example_status_counts.learning} learning · {detail.example_status_counts.mastered} mastered · {detail.example_status_counts.new} new.</p>
+        <p className="mt-1 text-xs text-stone-500">A kanji is weak when it is directly weak or more than half of all its examples are weak.</p>
+      </div>}
     </header>
 
     <section className="py-7">
@@ -177,4 +182,9 @@ function KnowledgeButtons({value, disabled, setValue}: {value: KnowledgeStatus; 
 function PracticeStatus({status, attempts}: {status: "new" | "learning" | "weak" | "mastered"; attempts: number}) {
   const tone = status === "mastered" ? "bg-green-50 text-moss" : status === "weak" ? "bg-red-50 text-persimmon" : "bg-stone-100 text-stone-600";
   return <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${tone}`}>{status} · {attempts} attempt{attempts === 1 ? "" : "s"}</span>;
+}
+
+function StrengthStatus({status}: {status: "new" | "learning" | "weak" | "mastered"}) {
+  const tone = status === "mastered" ? "bg-green-100 text-moss" : status === "weak" ? "bg-red-100 text-persimmon" : "bg-stone-200 text-stone-700";
+  return <span className={`rounded-full px-2 py-1 text-xs font-semibold capitalize ${tone}`}>{status}</span>;
 }
